@@ -1,0 +1,1007 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="data:," />
+  <meta name="description" content="How a procurement planning simulator turns a forecast change into the exact raw-material orders needed: what, when, how much and why, without touching SAP." />
+  <title>Procurement Planning Simulator</title>
+
+  <!-- Poppins (Celonis brand font) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --black: #000;
+      --white: #fff;
+      --paper: #f5f5f5;
+      --ink: #111;
+      --muted: #686868;
+      --faint: #9a9a9a;
+      --line: #d3d3d3;
+      --accent: #5865c9;
+      --red: #bf281b;
+      --max: 1240px;
+      --gutter: clamp(1.25rem, 4vw, 4.5rem);
+
+      --frame-y: clamp(1.25rem, 6svh, 5rem);
+      --display-fit: clamp(2.5rem, min(6.6vw, 10.5svh), 6.6rem);
+      --heading-fit: clamp(1.9rem, min(4.2vw, 6.3svh), 4.2rem);
+      --body-fit: clamp(.9rem, min(1.2vw, 2.1svh), 1.08rem);
+      --gap-fit: clamp(1rem, 3svh, 3rem);
+    }
+
+    * { box-sizing: border-box; }
+    html { background: var(--paper); scroll-behavior: smooth; }
+    body { margin: 0; overflow-x: hidden; background: var(--paper); color: var(--ink); font-family: "Poppins", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-weight: 400; line-height: 1.5; }
+    body::selection { background: var(--accent); color: var(--white); }
+    img, svg { max-width: 100%; }
+    button { font: inherit; }
+    strong { font-weight: 600; }
+
+    .section-nav { position: fixed; z-index: 50; right: clamp(1rem, 3vw, 2.75rem); bottom: clamp(1rem, 3vw, 2.25rem); display: grid; gap: .35rem; }
+    .section-nav__button { display: grid; width: 2.45rem; height: 2.45rem; place-items: center; padding: 0; border: 1px solid rgba(255,255,255,.42); border-radius: 50%; background: rgba(0,0,0,.84); color: var(--white); cursor: pointer; font-size: 1.15rem; line-height: 1; transition: opacity .2s ease, background .2s ease, transform .2s ease; }
+    .section-nav__button:hover:not(:disabled) { background: #333; transform: translateY(-1px); }
+    .section-nav__button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    .section-nav__button:disabled { cursor: default; opacity: .35; }
+    .progress { position: fixed; z-index: 60; top: 0; left: 0; height: 2px; width: 100%; transform-origin: 0 50%; transform: scaleX(0); background: var(--accent); }
+
+    .section { position: relative; padding: clamp(4rem, 10svh, 8rem) var(--gutter); }
+    .section__inner { width: min(100%, var(--max)); margin: 0 auto; }
+    .dark { background: var(--black); color: var(--white); }
+    .paper { background: var(--paper); color: var(--ink); }
+    .white { background: var(--white); color: var(--ink); }
+    .kicker { margin: 0 0 .9rem; color: var(--muted); font-size: .7rem; font-weight: 500; letter-spacing: .16em; line-height: 1.3; text-transform: uppercase; }
+    .dark .kicker { color: rgba(255,255,255,.58); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1, h2, h3 { letter-spacing: -.045em; line-height: 1.04; font-weight: 500; }
+    h1 { margin-bottom: 1rem; }
+    h2 { margin-bottom: .9rem; font-size: var(--heading-fit); }
+    h3 { margin-bottom: .55rem; }
+    .lede { max-width: 56ch; color: var(--muted); font-size: var(--body-fit); line-height: 1.6; }
+    .dark .lede { color: rgba(255,255,255,.72); }
+    .micro { color: var(--muted); font-size: .76rem; line-height: 1.5; }
+    .dark .micro { color: rgba(255,255,255,.55); }
+
+    .frame-fit { min-height: 100svh; min-height: 100dvh; display: grid; place-items: center; padding: var(--frame-y) var(--gutter); }
+    .frame-fit__inner { min-height: calc(100dvh - var(--frame-y) - var(--frame-y)); position: relative; display: grid; align-content: center; }
+    .frame-fit h1 { font-size: var(--display-fit); }
+
+    /* Hero */
+    .hero { overflow: hidden; }
+    .hero .frame-fit__inner { overflow: hidden; }
+    .hero__grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(18rem, .85fr); align-items: end; gap: var(--gap-fit); position: relative; z-index: 1; }
+    .hero h1 { max-width: 13ch; }
+    .hero__diagram { position: absolute; right: -1%; top: 5%; width: min(46%, 38rem); opacity: .32; pointer-events: none; z-index: 0; }
+    .hero__diagram .h-line { stroke: var(--white); stroke-width: 1; opacity: .45; fill: none; }
+    .hero__diagram .h-node { fill: var(--black); stroke: var(--white); stroke-width: 1.2; }
+    .hero__diagram .h-focus { fill: var(--white); }
+    .hero__diagram .h-focus-line { stroke: var(--white); stroke-width: 2; fill: none; }
+
+    .split-head { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); align-items: end; gap: var(--gap-fit); margin-bottom: clamp(1.25rem, 4svh, 3rem); }
+    .split-head h2 { max-width: 14ch; margin-bottom: 0; }
+
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+    .stat { background: var(--paper); padding: clamp(.9rem, 2.2svh, 1.5rem); }
+    .white .stat { background: var(--white); }
+    .stat__num { display: block; font-size: clamp(1.45rem, min(2.8vw, 4.8svh), 2.4rem); font-weight: 500; letter-spacing: -.04em; line-height: 1; margin-bottom: .45rem; }
+    .stat__label { color: var(--muted); font-size: .78rem; line-height: 1.4; }
+    .dark .stats { background: rgba(255,255,255,.18); border-color: rgba(255,255,255,.18); }
+    .dark .stat { background: var(--black); }
+    .dark .stat__label { color: rgba(255,255,255,.6); }
+
+    .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; border: 1px solid var(--line); background: var(--line); }
+    .cards--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .cards--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .card { padding: clamp(1rem, 2.5svh, 1.8rem); background: var(--paper); }
+    .white .card { background: var(--white); }
+    .card__number { margin-bottom: clamp(.8rem, 2.5svh, 1.5rem); color: var(--faint); font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; }
+    .card h3 { font-size: clamp(1.05rem, min(1.7vw, 3svh), 1.45rem); }
+    .card p { margin-bottom: 0; color: var(--muted); font-size: clamp(.8rem, min(1vw, 1.8svh), .93rem); }
+    .card .tag { display: block; margin-top: .8rem; color: var(--ink); font-size: .8rem; font-weight: 500; }
+    .dark .cards { background: rgba(255,255,255,.18); border-color: rgba(255,255,255,.18); }
+    .dark .card { background: var(--black); }
+    .dark .card p { color: rgba(255,255,255,.66); }
+    .dark .card .tag { color: var(--white); }
+    .dark .card__number { color: rgba(255,255,255,.45); }
+
+    /* Today: quote strip */
+    .quote { margin: clamp(1rem, 3svh, 2rem) 0 0; padding: 1rem 1.2rem; border-left: 2px solid var(--ink); background: var(--white); font-size: clamp(1rem, 1.5vw, 1.25rem); font-weight: 500; letter-spacing: -.02em; line-height: 1.4; }
+
+    /* Playground flow */
+    .flow svg { width: 100%; height: auto; }
+    .f-box { fill: var(--white); stroke: var(--line); }
+    .f-box--key { fill: var(--ink); stroke: var(--ink); }
+    .f-line { fill: none; stroke: var(--ink); stroke-width: 1.2; }
+    .f-zone { fill: none; stroke: var(--accent); stroke-width: 1.3; stroke-dasharray: 5 4; }
+    .f-zone-t { fill: var(--accent); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; }
+    .f-sap { fill: var(--paper); stroke: var(--ink); stroke-width: 1.2; }
+
+    /* Scenes */
+    .scene { min-height: 330svh; padding-top: 0; padding-bottom: 0; }
+    .scene__pin { min-height: 100svh; min-height: 100dvh; display: grid; grid-template-columns: minmax(17rem, .78fr) minmax(0, 1.22fr); align-items: center; gap: var(--gap-fit); }
+    .scene__copy { padding: var(--frame-y) 0; }
+    .scene__copy h2 { max-width: 13ch; }
+    .scene__copy > div > p:not(.kicker) { max-width: 40ch; color: var(--muted); font-size: var(--body-fit); }
+    .scene__beats { display: grid; gap: .7rem; margin: clamp(1rem, 3svh, 2rem) 0 0; padding: 0; list-style: none; }
+    .beat { display: grid; grid-template-columns: 1.1rem 1fr; gap: .55rem; align-items: start; color: var(--muted); font-size: clamp(.78rem, min(1vw, 1.75svh), .9rem); line-height: 1.45; transition: color .25s ease; }
+    .beat::before { width: 7px; height: 7px; margin-top: .45rem; border: 1px solid currentColor; border-radius: 50%; content: ""; }
+    .beat b { font-weight: 600; }
+    .beat.is-active { color: var(--ink); }
+    .beat.is-active::before { background: currentColor; }
+    .stage { display: grid; min-height: min(62svh, 38rem); place-items: center; padding: 1rem 0; }
+    .stage svg { width: 100%; height: auto; max-height: 84svh; overflow: visible; }
+    svg text { font-family: "Poppins", system-ui, sans-serif; }
+    .lbl { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; fill: var(--muted); }
+    .t-mid { font-size: 13px; fill: var(--ink); }
+    .t-sm { font-size: 11px; fill: var(--muted); }
+    .t-b { font-weight: 600; }
+    .t-red { fill: var(--red); }
+    .t-acc { fill: var(--accent); }
+    .t-inv { fill: var(--white); }
+    .panel-bg { fill: var(--white); stroke: var(--line); }
+
+    /* Cascade */
+    .c-line { stroke: var(--ink); stroke-width: 1; opacity: .35; fill: none; }
+    .c-line--hl { stroke: var(--accent); stroke-width: 2; opacity: 1; fill: none; }
+    .c-node { fill: var(--paper); stroke: var(--ink); stroke-width: 1.2; }
+    .c-node--fg { fill: var(--ink); }
+    .c-node--b { fill: var(--accent); stroke: var(--accent); }
+    .c-node--ghost { fill: var(--paper); stroke: var(--faint); stroke-dasharray: 2 2; }
+    .c-line--ghost { stroke: var(--faint); stroke-dasharray: 3 3; fill: none; stroke-width: 1; }
+    .c-bar { fill: var(--ink); }
+    .c-upload { fill: var(--white); stroke: var(--ink); stroke-width: 1.2; }
+
+    /* Stock chart */
+    .s-axis { stroke: var(--ink); stroke-width: 1; }
+    .s-grid { stroke: var(--line); stroke-width: 1; }
+    .s-ss { stroke: var(--ink); stroke-width: 1; stroke-dasharray: 4 4; opacity: .6; }
+    .s-zero { stroke: var(--ink); stroke-width: .8; opacity: .35; }
+    .s-short { fill: var(--red); opacity: .12; }
+    .s-before { fill: none; stroke: var(--red); stroke-width: 1.6; }
+    .s-pull { fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-dasharray: 6 4; }
+    .s-final { fill: none; stroke: var(--accent); stroke-width: 2.6; }
+    .s-arrow { fill: none; stroke: var(--ink); stroke-width: 1.4; }
+    .s-po { fill: var(--white); stroke: var(--ink); stroke-width: 1.2; }
+    .s-newpo { fill: var(--accent); }
+    .legend { display: flex; flex-wrap: wrap; gap: .4rem 1.1rem; margin-top: .8rem; font-size: .74rem; color: var(--muted); }
+    .legend span { display: inline-flex; align-items: center; gap: .4rem; }
+    .legend i { display: inline-block; width: 18px; height: 0; border-top: 2px solid; }
+
+    /* When & how much */
+    .when__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap-fit); }
+    .figure { padding: clamp(1rem, 2.5svh, 1.6rem); border: 1px solid var(--line); border-radius: 4px; background: var(--white); }
+    .figure h3 { font-size: clamp(1.05rem, 1.6vw, 1.35rem); }
+    .figure p { color: var(--muted); font-size: .88rem; }
+    .figure svg { width: 100%; height: auto; margin-top: .4rem; }
+    .w-axis { stroke: var(--ink); stroke-width: 1; }
+    .w-lead { fill: var(--ink); }
+    .w-lead--late { fill: var(--red); opacity: .85; }
+    .w-today { stroke: var(--accent); stroke-width: 1.5; }
+    .q-bar { fill: #e6e6e6; }
+    .q-bar--ink { fill: var(--ink); }
+    .q-bar--acc { fill: var(--accent); }
+
+    /* Why: pegging */
+    .peg svg { width: 100%; height: auto; }
+    .p-box { fill: var(--white); stroke: var(--line); }
+    .p-box--start { fill: var(--accent); stroke: var(--accent); }
+    .p-box--end { fill: var(--ink); stroke: var(--ink); }
+    .p-arrow { fill: none; stroke: var(--ink); stroke-width: 1.2; }
+    .p-dot { fill: var(--ink); }
+    .p-dot--open { fill: var(--white); stroke: var(--ink); stroke-width: 1.5; }
+    .split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin-top: clamp(1rem, 3svh, 1.8rem); background: var(--line); border: 1px solid var(--line); }
+    .split div { padding: .9rem 1rem; background: var(--white); font-size: .84rem; color: var(--muted); }
+    .split b { display: flex; align-items: center; gap: .5rem; margin-bottom: .25rem; color: var(--ink); font-weight: 500; font-size: .92rem; }
+    .split b::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--ink); }
+    .split .open b::before { background: var(--white); border: 1.5px solid var(--ink); }
+
+    /* Trust */
+    .trust-strip { margin-top: clamp(1rem, 3svh, 2rem); }
+
+    /* Use */
+    .use__grid { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: var(--gap-fit); align-items: start; margin-top: clamp(1.5rem, 4svh, 2.5rem); }
+    .routine { margin: 0; padding: 0; list-style: none; display: grid; gap: .7rem; counter-reset: step; }
+    .routine li { display: grid; grid-template-columns: 1.9rem 1fr; gap: .7rem; align-items: start; font-size: .9rem; color: var(--muted); counter-increment: step; }
+    .routine li::before { content: counter(step); display: grid; width: 1.9rem; height: 1.9rem; place-items: center; border: 1px solid var(--ink); border-radius: 50%; color: var(--ink); font-size: .78rem; font-weight: 500; }
+    .routine li b { color: var(--ink); font-weight: 500; }
+    .dash { border: 1px solid var(--line); border-radius: 8px; background: var(--white); overflow: hidden; }
+    .dash__top { padding: .65rem 1rem; border-bottom: 1px solid var(--line); font-size: .72rem; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+    .tabs { display: flex; flex-wrap: wrap; gap: .4rem; padding: .8rem 1rem; border-bottom: 1px solid var(--line); }
+    .tab { padding: .42rem .8rem; border: 1px solid var(--line); border-radius: 999px; background: var(--white); color: var(--ink); cursor: pointer; font-size: .78rem; transition: background .2s ease, border-color .2s ease, color .2s ease; }
+    .tab:hover { border-color: var(--ink); }
+    .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .tab[aria-selected="true"] { background: var(--ink); border-color: var(--ink); color: var(--white); }
+    .tabs[hidden] { display: none; }
+    .panel { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border-bottom: 1px solid var(--line); }
+    .panel:last-child { border-bottom: 0; }
+    .panel[hidden] { display: none; }
+    .panel > div { background: var(--white); padding: 1rem; }
+    .panel h4 { margin: 0 0 .4rem; font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 500; color: var(--muted); }
+    .panel p { margin: 0; font-size: .86rem; color: var(--ink); line-height: 1.5; }
+    .panel .num { display: block; margin-bottom: .3rem; font-size: 1.5rem; font-weight: 500; letter-spacing: -.03em; }
+    .panel__title { grid-column: 1 / -1; font-weight: 500; font-size: .95rem; }
+
+    /* Next */
+    .next__grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(17rem, .95fr); align-items: center; gap: var(--gap-fit); }
+    .next__grid svg { width: 100%; height: auto; }
+    .close__final { margin-top: clamp(1.5rem, 5svh, 3rem); font-size: clamp(1.2rem, 2vw, 1.6rem); font-weight: 500; letter-spacing: -.03em; }
+    .n-track { fill: rgba(255,255,255,.12); }
+    .n-bar { fill: var(--white); }
+    .n-bar--soft { fill: rgba(255,255,255,.4); }
+    .n-lbl { fill: rgba(255,255,255,.6); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; }
+    .n-txt { fill: var(--white); font-size: 13px; }
+    .n-sub { fill: rgba(255,255,255,.6); font-size: 11px; }
+
+    .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    .reveal { opacity: 1; transform: none; }
+    .scene__pin { position: static; }
+    .motion-ready .scene__pin { position: sticky; top: 0; }
+
+    @media (max-width: 900px) {
+      .hero__grid, .split-head, .scene__pin, .next__grid, .use__grid, .when__grid { grid-template-columns: 1fr; }
+      .hero__diagram { width: 90%; top: 3%; opacity: .2; }
+      .scene { min-height: auto; padding-top: var(--frame-y); padding-bottom: var(--frame-y); }
+      .scene__pin { min-height: auto; }
+      .motion-ready .scene__pin { position: static; }
+      .stage { min-height: 0; }
+      .stage svg { max-height: none; }
+      .cards, .cards--4 { grid-template-columns: 1fr 1fr; }
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .beat, .beat::before { color: inherit; }
+      .beat::before { background: currentColor; }
+    }
+    @media (max-height: 720px) and (orientation: landscape) {
+      :root { --frame-y: clamp(.75rem, 3svh, 1.5rem); --gap-fit: clamp(.75rem, 2svh, 1.5rem); }
+    }
+    @media (max-width: 620px) {
+      .cards, .cards--2, .cards--4, .split, .panel { grid-template-columns: 1fr; }
+      .section-nav { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="progress" aria-hidden="true"></div>
+  <main aria-keyshortcuts="ArrowUp ArrowDown">
+
+    <!-- 1 · The question -->
+    <section class="section dark frame-fit hero" id="question" data-section="1">
+      <div class="section__inner frame-fit__inner">
+        <svg class="hero__diagram" viewBox="0 0 520 420" role="img" aria-label="A forecast change for one finished product cascades down through sub-assemblies to many purchased materials.">
+          <path class="h-focus-line" d="M260 40 L80 170"/>
+<path class="h-focus-line" d="M260 40 L200 170"/>
+<path class="h-focus-line" d="M260 40 L320 170"/>
+<path class="h-focus-line" d="M260 40 L440 170"/>
+<path class="h-line" d="M80 170 L345 330"/>
+<path class="h-line" d="M80 170 L170 330"/>
+<path class="h-line" d="M80 170 L415 330"/>
+<path class="h-line" d="M80 170 L205 330"/>
+<path class="h-line" d="M80 170 L310 330"/>
+<path class="h-line" d="M200 170 L30 330"/>
+<path class="h-line" d="M200 170 L275 330"/>
+<path class="h-line" d="M200 170 L135 330"/>
+<path class="h-line" d="M200 170 L380 330"/>
+<path class="h-line" d="M200 170 L485 330"/>
+<path class="h-line" d="M320 170 L100 330"/>
+<path class="h-line" d="M320 170 L65 330"/>
+<path class="h-line" d="M320 170 L205 330"/>
+<path class="h-line" d="M320 170 L275 330"/>
+<path class="h-line" d="M320 170 L135 330"/>
+<path class="h-line" d="M440 170 L240 330"/>
+<path class="h-line" d="M440 170 L310 330"/>
+<path class="h-line" d="M440 170 L65 330"/>
+<path class="h-line" d="M440 170 L345 330"/>
+<path class="h-line" d="M440 170 L135 330"/>
+<circle class="h-node" cx="80" cy="170" r="7"/>
+<circle class="h-node" cx="200" cy="170" r="7"/>
+<circle class="h-node" cx="320" cy="170" r="7"/>
+<circle class="h-node" cx="440" cy="170" r="7"/>
+<circle class="h-node" cx="30" cy="330" r="7"/>
+<circle class="h-node" cx="65" cy="330" r="7"/>
+<circle class="h-node" cx="100" cy="330" r="7"/>
+<circle class="h-node" cx="135" cy="330" r="7"/>
+<circle class="h-node" cx="170" cy="330" r="7"/>
+<circle class="h-node" cx="205" cy="330" r="7"/>
+<circle class="h-node" cx="240" cy="330" r="7"/>
+<circle class="h-node" cx="275" cy="330" r="7"/>
+<circle class="h-node" cx="310" cy="330" r="7"/>
+<circle class="h-node" cx="345" cy="330" r="7"/>
+<circle class="h-node" cx="380" cy="330" r="7"/>
+<circle class="h-node" cx="415" cy="330" r="7"/>
+<circle class="h-node" cx="450" cy="330" r="7"/>
+<circle class="h-node" cx="485" cy="330" r="7"/>
+<circle class="h-focus" cx="260" cy="40" r="12"/>
+        </svg>
+        <div class="hero__grid">
+          <div class="reveal">
+            <p class="kicker">Example · Procurement planning</p>
+            <h1>A new forecast just landed. What do we actually need to buy?</h1>
+          </div>
+          <div class="reveal">
+            <p class="lede">A change in demand for one product spreads through hundreds of materials. This page shows how the procurement planning simulator works out exactly which raw-material orders are needed, and when, how much and why. It does this in a safe copy of the plan, so SAP stays untouched.</p>
+            
+            <p class="micro" style="margin-top:.6rem;opacity:.8">Illustrative example · all names and figures are representative, not from a real company.</p>
+            <p class="micro" style="margin-top:clamp(1.5rem,5svh,3rem)">About 8 minutes · Scroll or use ↓ to continue</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2 · Today -->
+    <section class="section paper frame-fit" id="today" data-section="2">
+      <div class="section__inner frame-fit__inner">
+        <div class="split-head reveal">
+          <div>
+            <p class="kicker">Before · How a forecast change is handled today</p>
+            <h2>New forecast, new orders. Without checking.</h2>
+          </div>
+          <p class="lede">When a new forecast arrives, the safe assumption is to order all the raw materials it needs as new. Nobody can check first what is already on order, or what the plan actually needs.</p>
+        </div>
+        <div class="cards reveal">
+          <article class="card">
+            <p class="card__number">01 · The habit</p>
+            <h3>Order everything new.</h3>
+            <p>Every raw material for the extra demand is ordered fresh, even when open SAP orders could cover part of it if they arrived a little earlier.</p>
+            <span class="tag">Risk: more stock and cash tied up than needed</span>
+          </article>
+          <article class="card">
+            <p class="card__number">02 · The limitation</p>
+            <h3>SAP has no playground.</h3>
+            <p>Running MRP creates real planned orders and requisitions. To try a scenario you would have to create the orders, then delete them if you didn't like the result.</p>
+            <span class="tag">Risk: what-if questions stay unanswered</span>
+          </article>
+          <article class="card">
+            <p class="card__number">03 · The blind spot</p>
+            <h3>The knock-on effect is invisible.</h3>
+            <p>One finished good pulls on sub-assemblies, which pull on purchased materials, sometimes nine levels deep and shared with other products.</p>
+            <span class="tag">Risk: shortages and late orders found too late</span>
+          </article>
+        </div>
+        <p class="quote reveal">The question planners need answered: <em>"What exactly do I need to order, when, how much, and why?"</em></p>
+      </div>
+    </section>
+
+    <!-- 3 · The playground -->
+    <section class="section white frame-fit" id="playground" data-section="3">
+      <div class="section__inner frame-fit__inner">
+        <div class="split-head reveal">
+          <div>
+            <p class="kicker">After · The simulator</p>
+            <h2>A safe copy of the real plan.</h2>
+          </div>
+          <p class="lede">The simulator rebuilds SAP's plan from today's stock and every open order and demand. It then plans the new demand the way SAP MRP would. You can try any scenario, and nothing has to be created or deleted in SAP.</p>
+        </div>
+        <div class="flow reveal">
+          <svg viewBox="0 0 1100 230" role="img" aria-label="Workflow: 1, upload the new demand in Excel. 2, press the button in Celonis. 3, the simulator plans in a safe copy of SAP's plan, about 30 minutes. 4, results appear in the Celonis dashboard. 5, the planner acts in SAP. SAP itself is never changed by the simulator.">
+            <rect class="f-zone" x="230" y="12" width="600" height="168" rx="6"/>
+            <text class="f-zone-t" x="246" y="34">Celonis · safe copy · SAP untouched</text>
+            <g>
+              <rect class="f-box" x="0" y="60" width="200" height="96" rx="4"/>
+              <text class="lbl" x="18" y="86">01 · Upload</text>
+              <text class="t-mid" x="18" y="112">New demand in Excel</text>
+              <text class="t-sm" x="18" y="132">Product · quantity · date</text>
+            </g>
+            <path class="f-line" d="M200 108 H250"/>
+            <g>
+              <rect class="f-box" x="250" y="60" width="170" height="96" rx="4"/>
+              <text class="lbl" x="268" y="86">02 · Run</text>
+              <text class="t-mid" x="268" y="112">Press the button</text>
+              <text class="t-sm" x="268" y="132">anyone can run it</text>
+            </g>
+            <path class="f-line" d="M420 108 H450"/>
+            <g>
+              <rect class="f-box f-box--key" x="450" y="60" width="190" height="96" rx="4"/>
+              <text class="lbl t-inv" x="468" y="86" style="opacity:.7">03 · Simulate</text>
+              <text class="t-mid t-inv" x="468" y="112">Plans like SAP MRP</text>
+              <text class="t-sm t-inv" x="468" y="132" style="opacity:.75">≈ 30 minutes</text>
+            </g>
+            <path class="f-line" d="M640 108 H670"/>
+            <g>
+              <rect class="f-box" x="670" y="60" width="150" height="96" rx="4"/>
+              <text class="lbl" x="688" y="86">04 · Review</text>
+              <text class="t-mid" x="688" y="112">Dashboard</text>
+              <text class="t-sm" x="688" y="132">what · when · why</text>
+            </g>
+            <path class="f-line" d="M820 108 H880"/>
+            <g>
+              <rect class="f-sap" x="880" y="60" width="210" height="96" rx="4"/>
+              <text class="lbl" x="898" y="86">05 · Act</text>
+              <text class="t-mid" x="898" y="112">Planner acts in SAP</text>
+              <text class="t-sm" x="898" y="132">only what's needed</text>
+            </g>
+            <text class="t-sm" x="0" y="214">The simulator only recommends. Every change in SAP is made by a planner.</text>
+          </svg>
+        </div>
+        <div class="stats reveal" style="margin-top:clamp(1rem,3svh,2rem)">
+          <div class="stat"><span class="stat__num">800,000</span><span class="stat__label">SAP planning elements rebuilt: stock, orders, requisitions, reservations, demand</span></div>
+          <div class="stat"><span class="stat__num">200,000</span><span class="stat__label">bill-of-materials links followed</span></div>
+          <div class="stat"><span class="stat__num">9</span><span class="stat__label">BOM levels deep, from finished good to raw material</span></div>
+          <div class="stat"><span class="stat__num">0</span><span class="stat__label">orders created or deleted in SAP</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 · Cascade (scroll scene) -->
+    <section class="section paper scene" id="cascade" data-section="4" data-scene="cascade">
+      <div class="section__inner scene__pin">
+        <div class="scene__copy">
+          <div class="reveal">
+            <p class="kicker">Step 1 · Follow the demand down</p>
+            <h2>One forecast change, hundreds of materials.</h2>
+            <p>Follow one forecast change for Product A, an example finished good.</p>
+          </div>
+          <ol class="scene__beats" aria-label="How a forecast change cascades">
+            <li class="beat is-active" data-beat="0"><span><b>Upload:</b> demand for Product A goes up 25% for Q1 2027.</span></li>
+            <li class="beat" data-beat="1"><span><b>Production:</b> stock of Product A would drop below safety stock, so the simulator plans <b>20 production orders</b>, e.g. 1,800 units in January, 1,200 in February, 900 in March.</span></li>
+            <li class="beat" data-beat="2"><span><b>Sub-assemblies:</b> each production order needs components. Their own stock is checked, and new production orders follow level by level: <b>1,300</b> in this run.</span></li>
+            <li class="beat" data-beat="3"><span><b>Purchased materials:</b> the demand reaches <b>400 materials</b>, including Material B. Products that share a material are planned together, so it sees their combined demand.</span></li>
+          </ol>
+        </div>
+        <div class="stage reveal">
+          <svg viewBox="0 0 720 540" role="img" aria-label="Cascade diagram. A forecast upload raises demand for Product A. Product A gets monthly production orders: 1,800 in January, 1,200 in February, 900 in March, 1,100 in April, 1,300 in May, 950 in June. These create demand on sub-assemblies over several levels, which reach purchased materials including Material B. A second product shares one purchased material, whose demand is combined.">
+            <g data-step="0">
+<rect class="c-upload" x="20" y="20" width="200" height="66" rx="4"/><text class="lbl" x="36" y="44">Excel upload</text><text class="t-mid" x="36" y="68">Product A · Q1 2027 +25%</text>
+<path class="c-line--hl" d="M220 53 H300"/>
+<circle class="c-node c-node--fg" cx="320" cy="53" r="16"/><text class="t-mid t-b" x="346" y="49">Product A</text><text class="t-sm" x="346" y="66">finished good · level 0</text>
+</g>
+<g data-step="1">
+<text class="lbl" x="490" y="22">Production orders (example)</text>
+<rect class="c-bar" x="490" y="58.0" width="26" height="66.0"/>
+<text class="t-sm" x="503" y="140" text-anchor="middle">Jan</text>
+<rect class="c-bar" x="528" y="80.0" width="26" height="44.0"/>
+<text class="t-sm" x="541" y="140" text-anchor="middle">Feb</text>
+<rect class="c-bar" x="566" y="91.0" width="26" height="33.0"/>
+<text class="t-sm" x="579" y="140" text-anchor="middle">Mar</text>
+<rect class="c-bar" x="604" y="83.7" width="26" height="40.3"/>
+<text class="t-sm" x="617" y="140" text-anchor="middle">Apr</text>
+<rect class="c-bar" x="642" y="76.3" width="26" height="47.7"/>
+<text class="t-sm" x="655" y="140" text-anchor="middle">May</text>
+<rect class="c-bar" x="680" y="89.2" width="26" height="34.8"/>
+<text class="t-sm" x="693" y="140" text-anchor="middle">Jun</text>
+<text class="t-sm" x="503" y="52" text-anchor="middle">1,800</text>
+<text class="t-sm" x="490" y="160">20 orders through Dec 2027</text>
+</g>
+<g data-step="2">
+<path class="c-line" d="M320 69 L140 220"/>
+<path class="c-line" d="M320 69 L260 220"/>
+<path class="c-line" d="M320 69 L380 220"/>
+<path class="c-line" d="M320 69 L500 220"/>
+<path class="c-line" d="M140 240 L90 311"/>
+<path class="c-line" d="M140 240 L190 311"/>
+<path class="c-line" d="M260 240 L190 311"/>
+<path class="c-line" d="M260 240 L290 311"/>
+<path class="c-line" d="M380 240 L390 311"/>
+<path class="c-line" d="M380 240 L490 311"/>
+<path class="c-line" d="M500 240 L490 311"/>
+<path class="c-line" d="M500 240 L590 311"/>
+<circle class="c-node" cx="140" cy="230" r="10"/>
+<circle class="c-node" cx="260" cy="230" r="10"/>
+<circle class="c-node" cx="380" cy="230" r="10"/>
+<circle class="c-node" cx="500" cy="230" r="10"/>
+<circle class="c-node" cx="90" cy="320" r="9"/>
+<circle class="c-node" cx="190" cy="320" r="9"/>
+<circle class="c-node" cx="290" cy="320" r="9"/>
+<circle class="c-node" cx="390" cy="320" r="9"/>
+<circle class="c-node" cx="490" cy="320" r="9"/>
+<circle class="c-node" cx="590" cy="320" r="9"/>
+<text class="lbl" x="620" y="234">Level 1</text><text class="lbl" x="620" y="324">Level 2…8</text>
+<text class="t-sm" x="20" y="180">Sub-assemblies:</text><text class="t-sm" x="20" y="196">1,300 production orders</text>
+</g>
+<g data-step="3">
+<path class="c-line" d="M90 329 L60 433"/>
+<path class="c-line" d="M90 329 L118 433"/>
+<path class="c-line" d="M190 329 L176 433"/>
+<path class="c-line" d="M190 329 L234 433"/>
+<path class="c-line" d="M290 329 L234 433"/>
+<path class="c-line" d="M290 329 L292 433"/>
+<path class="c-line" d="M390 329 L350 433"/>
+<path class="c-line" d="M490 329 L350 433"/>
+<path class="c-line" d="M490 329 L408 433"/>
+<path class="c-line" d="M590 329 L466 433"/>
+<path class="c-line" d="M590 329 L524 433"/>
+<path class="c-line" d="M590 329 L582 433"/>
+<path class="c-line--hl" d="M320 69 L260 220 M260 240 L190 311 M190 329 L234 433"/>
+<circle class="c-node" cx="60" cy="440" r="6"/>
+<circle class="c-node" cx="118" cy="440" r="6"/>
+<circle class="c-node" cx="176" cy="440" r="6"/>
+<circle class="c-node c-node--b" cx="234" cy="440" r="8"/>
+<circle class="c-node" cx="292" cy="440" r="6"/>
+<circle class="c-node" cx="350" cy="440" r="6"/>
+<circle class="c-node" cx="408" cy="440" r="6"/>
+<circle class="c-node" cx="466" cy="440" r="6"/>
+<circle class="c-node" cx="524" cy="440" r="6"/>
+<circle class="c-node" cx="582" cy="440" r="6"/>
+<text class="t-mid t-acc t-b" x="234" y="470" text-anchor="middle">Material B</text>
+<path class="c-line--ghost" d="M690 395 L524 433"/>
+<circle class="c-node c-node--ghost" cx="690" cy="395" r="11"/><text class="t-sm" x="676" y="378" text-anchor="end">2nd product</text>
+<text class="t-sm" x="524" y="470" text-anchor="middle">shared · demand combined</text>
+<text class="lbl" x="20" y="500">Purchased materials · 400 re-planned in total</text>
+</g>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5 · Pull forward (scroll scene) -->
+    <section class="section white scene" id="pullforward" data-section="5" data-scene="pull">
+      <div class="section__inner scene__pin">
+        <div class="scene__copy">
+          <div class="reveal">
+            <p class="kicker">Step 2 · Use what's already ordered</p>
+            <h2>Pull forward first. Buy new only for the rest.</h2>
+            <p>Here is what happens to Material B, a purchased material. The simulator checks each day whether stock stays above safety stock.</p>
+          </div>
+          <ol class="scene__beats" aria-label="Fixing the shortage on Material B">
+            <li class="beat is-active" data-beat="0"><span><b>The shortage:</b> January production of Product A needs 6,100 units of Material B on 1 Jan. Stock would fall to −3,500, far below the 1,500 safety stock.</span></li>
+            <li class="beat" data-beat="1"><span><b>Pull forward:</b> an open SAP purchase order for 3,000 units is due 12 Jan, within Material B's delivery time. The simulator pulls it forward to 1 Jan, using its exact SAP order number.</span></li>
+            <li class="beat" data-beat="2"><span><b>Buy only the rest:</b> 2,000 units are still missing, so one new purchase order is planned, rounded up to the 5,000 minimum lot. Stock is back above safety stock.</span></li>
+            <li class="beat" data-beat="3"><span><b>Across the run:</b> 3,000 existing orders pulled forward, and only 2,200 new purchase orders needed. More gaps were closed with orders already in SAP than with new ones.</span></li>
+          </ol>
+          <div class="legend reveal" aria-hidden="true">
+            <span><i style="border-color:var(--red)"></i>Without action</span>
+            <span><i style="border-color:var(--ink);border-top-style:dashed"></i>After pull-forward</span>
+            <span><i style="border-color:var(--accent);border-top-width:3px"></i>Final plan</span>
+          </div>
+        </div>
+        <div class="stage reveal">
+          <svg viewBox="0 0 720 495" role="img" aria-label="Projected stock of Material B from 5 December to mid January. Without action, stock falls to minus 3,500 on 1 January, recovering only partly when a 3,000 unit purchase order arrives on 12 January. Pulling that order forward to 1 January lifts stock to minus 500. A new 5,000 unit purchase order on 1 January lifts stock to 4,500, above the 1,500 safety stock. Across the run: 3,000 pull-forwards and 2,200 new purchase orders.">
+            <text class="lbl" x="70" y="40">Material B · projected stock (units)</text>
+            <line class="s-grid" x1="70" y1="70.0" x2="670" y2="70.0"/>
+            <text class="t-sm" x="62" y="70.0" dy="4" text-anchor="end">5,000</text>
+            <line class="s-zero" x1="70" y1="231.1" x2="670" y2="231.1"/>
+            <text class="t-sm" x="62" y="231.1" dy="4" text-anchor="end">0</text>
+            <line class="s-ss" x1="70" y1="182.8" x2="670" y2="182.8"/>
+            <text class="t-sm" x="62" y="182.8" dy="4" text-anchor="end">1,500</text>
+            <text class="t-sm" x="78" y="182.8" dy="-6">Safety stock</text>
+            <text class="t-sm" x="62" y="360.0" dy="4" text-anchor="end">−4,000</text>
+            <g data-step="0">
+              <path class="s-short" d="M465.1 182.8 L465.1 343.9 L626.1 345.8 L626.1 249.2 L670.0 249.8 L670.0 182.8 Z"/>
+              <path class="s-before" d="M70.0 131.2 L465.1 147.3 L465.1 343.9 L626.1 345.8 L626.1 249.2 L670.0 249.8"/>
+              <text class="t-mid t-red" x="465.1" y="343.9" dx="-8" dy="4" text-anchor="end">−3,500</text>
+              <rect class="s-po" x="626.1" y="370" width="10" height="10" transform="translate(-5 0)"/>
+              <text class="t-sm" x="626.1" y="380" dx="12">Open PO 3,000</text><text class="t-sm" x="626.1" y="396" dx="12">due 12 Jan</text>
+            </g>
+            <g data-step="1">
+              <path class="s-pull" d="M465.1 147.3 L465.1 247.2 L670.0 249.8"/>
+              <path class="s-arrow" d="M626.1 382 C610 424 500 424 465.1 372" marker-end="url(#ah)"/>
+              <text class="t-sm" x="555" y="436" text-anchor="middle">pulled forward 11 days</text>
+            </g>
+            <g data-step="2">
+              <path class="s-final" d="M70.0 131.2 L465.1 147.3 L465.1 86.1 L670.0 88.7"/>
+              <circle class="s-newpo" cx="465.1" cy="86.1" r="6"/>
+              <text class="t-mid t-acc t-b" x="465.1" y="86.1" dx="-12" dy="-12" text-anchor="end">New PO 5,000</text>
+            </g>
+            <line class="s-axis" x1="70" y1="360" x2="670" y2="360"/>
+            <g class="t-sm">
+              <text x="70.0" y="378" text-anchor="middle">5 Dec</text>
+              <text x="465.1" y="378" text-anchor="middle" dx="-22">1 Jan</text>
+            </g>
+            <g data-step="3">
+              <rect class="panel-bg" x="70" y="452" width="600" height="38" rx="4"/>
+              <text class="t-mid" x="86" y="476"><tspan class="t-b">Whole run:</tspan> 3,000 orders pulled forward · 2,200 new purchase orders</text>
+            </g>
+            <defs><marker id="ah" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#111"/></marker></defs>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6 · When and how much -->
+    <section class="section paper frame-fit" id="when" data-section="6">
+      <div class="section__inner frame-fit__inner">
+        <div class="split-head reveal">
+          <div>
+            <p class="kicker">Step 3 · When and how much</p>
+            <h2>The right date and quantity, by SAP's own rules.</h2>
+          </div>
+          <p class="lede">Each new order uses the company's master data for the material: planned delivery time, safety stock, minimum lot size and rounding quantity. The simulator applies these rules the way SAP MRP does.</p>
+        </div>
+        <div class="when__grid">
+          <div class="figure reveal">
+            <p class="kicker">When to order</p>
+            <h3>Order date = need date − planned delivery time.</h3>
+            <p>Material B is needed on 1 Jan 2027 and has a 21-day delivery time, so it must be ordered by 11 Dec 2026. If that date is already past, the order is flagged <strong>late</strong>: order now and expedite.</p>
+            <svg viewBox="0 0 560 190" role="img" aria-label="Two timelines against today's date, 15 October. Material B: order by 11 December, 21 days delivery, needed 1 January; on time. A late example: the order date was 3 October, already 12 days before today; flagged late.">
+              <line class="w-today" x1="150" y1="20" x2="150" y2="150"/>
+              <text class="t-sm t-acc" x="150" y="14" text-anchor="middle">Today · 15 Oct</text>
+              <text class="lbl" x="0" y="58">Material B</text>
+              <rect class="w-lead" x="420" y="48" width="70" height="14" rx="2"/>
+              <text class="t-sm" x="420" y="82" text-anchor="middle">order 11 Dec</text>
+              <text class="t-sm" x="490" y="82" text-anchor="middle">need 1 Jan</text>
+              <text class="t-sm" x="455" y="42" text-anchor="middle">21 days</text>
+              <text class="t-mid" x="560" y="60" text-anchor="end">On time</text>
+              <text class="lbl" x="0" y="118">Late example</text>
+              <rect class="w-lead--late" x="110" y="108" width="100" height="14" rx="2"/>
+              <text class="t-sm" x="110" y="142" text-anchor="middle">order 3 Oct</text>
+              <text class="t-sm" x="210" y="142" text-anchor="middle">need 2 Nov</text>
+              <text class="t-mid t-red t-b" x="560" y="120" text-anchor="end">Late · 12 days</text>
+              <line class="w-axis" x1="0" y1="170" x2="560" y2="170"/>
+              <text class="t-sm" x="0" y="186">Oct</text><text class="t-sm" x="230" y="186">Nov</text><text class="t-sm" x="400" y="186">Dec</text><text class="t-sm" x="500" y="186">Jan</text>
+            </svg>
+            <p class="micro" style="margin-top:.6rem"><strong>250</strong> new purchase orders in the run were already late. They are the first ones to act on.</p>
+          </div>
+          <div class="figure reveal">
+            <p class="kicker">How much to order</p>
+            <h3>Shortfall, then minimum lot, then rounding.</h3>
+            <p>The quantity starts with what's needed to get back to safety stock. It is raised to the minimum lot size, then rounded up to the rounding quantity. If that pushes stock above the target stock level, it is listed as an exception.</p>
+            <svg viewBox="0 0 560 190" role="img" aria-label="Quantity for Material B: shortfall 2,000 units, raised to the minimum lot of 5,000, rounding leaves 5,000. Final order 5,000 units.">
+              <text class="lbl" x="0" y="26">Shortfall to safety stock</text>
+              <rect class="q-bar" x="0" y="34" width="560" height="16" rx="2"/>
+              <rect class="q-bar--ink" x="0" y="34" width="200" height="16" rx="2"/>
+              <text class="t-mid" x="210" y="47">2,000</text>
+              <text class="lbl" x="0" y="82">Raised to minimum lot</text>
+              <rect class="q-bar" x="0" y="90" width="560" height="16" rx="2"/>
+              <rect class="q-bar--ink" x="0" y="90" width="500" height="16" rx="2"/>
+              <text class="t-mid t-inv" x="490" y="103" text-anchor="end">5,000</text>
+              <text class="lbl" x="0" y="138">After rounding = order quantity</text>
+              <rect class="q-bar" x="0" y="146" width="560" height="16" rx="2"/>
+              <rect class="q-bar--acc" x="0" y="146" width="500" height="16" rx="2"/>
+              <text class="t-mid t-inv t-b" x="490" y="159" text-anchor="end">5,000</text>
+              <text class="t-sm" x="0" y="186">Material B · minimum lot 5,000</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7 · Why -->
+    <section class="section white frame-fit" id="why" data-section="7">
+      <div class="section__inner frame-fit__inner peg">
+        <div class="split-head reveal">
+          <div>
+            <p class="kicker">Step 4 · Why it's needed</p>
+            <h2>Every order can be traced back to its demand.</h2>
+          </div>
+          <p class="lede">Each simulated order is linked to the finished good and the demand it serves. A buyer can see <em>why</em> an order exists before placing it, and tell the forecast's orders apart from shortages that were already in SAP's plan.</p>
+        </div>
+        <div class="reveal">
+          <svg viewBox="0 0 1100 330" role="img" aria-label="Trace of one order: a new purchase order for 5,000 units of Material B, delivery 1 January 2027, serves a sub-assembly production order, which serves Product A's January production order of 1,800 units, which comes from the Q1 2027 forecast change. Below, Material B's six new purchase orders in 2027: 1 January, 22 March, 17 May, 6 September and 18 October are caused by the forecast; 29 November was already short in SAP's plan.">
+            <rect class="p-box p-box--start" x="0" y="20" width="240" height="96" rx="4"/>
+            <text class="lbl t-inv" x="18" y="46" style="opacity:.8">New purchase order</text>
+            <text class="t-mid t-inv" x="18" y="72">Material B · 5,000 units</text>
+            <text class="t-sm t-inv" x="18" y="92" style="opacity:.8">deliver 1 Jan · order by 11 Dec</text>
+            <path class="p-arrow" d="M240 68 H286" marker-end="url(#ah2)"/>
+            <rect class="p-box" x="290" y="20" width="240" height="96" rx="4"/>
+            <text class="lbl" x="308" y="46">serves</text>
+            <text class="t-mid" x="308" y="72">Sub-assembly production</text>
+            <text class="t-sm" x="308" y="92">component of Product A</text>
+            <path class="p-arrow" d="M530 68 H576" marker-end="url(#ah2)"/>
+            <rect class="p-box" x="580" y="20" width="240" height="96" rx="4"/>
+            <text class="lbl" x="598" y="46">serves</text>
+            <text class="t-mid" x="598" y="72">Product A production order</text>
+            <text class="t-sm" x="598" y="92">1,800 units · January 2027</text>
+            <path class="p-arrow" d="M820 68 H866" marker-end="url(#ah2)"/>
+            <rect class="p-box p-box--end" x="870" y="20" width="230" height="96" rx="4"/>
+            <text class="lbl t-inv" x="888" y="46" style="opacity:.7">caused by</text>
+            <text class="t-mid t-inv" x="888" y="72">Forecast change</text>
+            <text class="t-sm t-inv" x="888" y="92" style="opacity:.75">Product A · Q1 2027</text>
+
+            <text class="lbl" x="0" y="190">Material B · new purchase orders in 2027 (example)</text>
+            <line class="w-axis" x1="0" y1="250" x2="1100" y2="250"/>
+<text class="t-sm" x="20" y="276">Jan</text>
+<text class="t-sm" x="112" y="276">Feb</text>
+<text class="t-sm" x="204" y="276">Mar</text>
+<text class="t-sm" x="296" y="276">Apr</text>
+<text class="t-sm" x="388" y="276">May</text>
+<text class="t-sm" x="480" y="276">Jun</text>
+<text class="t-sm" x="572" y="276">Jul</text>
+<text class="t-sm" x="664" y="276">Aug</text>
+<text class="t-sm" x="756" y="276">Sep</text>
+<text class="t-sm" x="848" y="276">Oct</text>
+<text class="t-sm" x="940" y="276">Nov</text>
+<text class="t-sm" x="1032" y="276">Dec</text>
+<circle class="p-dot" cx="20.0" cy="250" r="9"/>
+<text class="t-sm" x="20.0" y="226" text-anchor="middle">1 Jan</text>
+<circle class="p-dot" cx="268.4" cy="250" r="9"/>
+<text class="t-sm" x="268.4" y="226" text-anchor="middle">22 Mar</text>
+<circle class="p-dot" cx="436.8" cy="250" r="9"/>
+<text class="t-sm" x="436.8" y="226" text-anchor="middle">17 May</text>
+<circle class="p-dot" cx="771.6" cy="250" r="9"/>
+<text class="t-sm" x="771.6" y="226" text-anchor="middle">6 Sep</text>
+<circle class="p-dot" cx="898.6" cy="250" r="9"/>
+<text class="t-sm" x="898.6" y="226" text-anchor="middle">18 Oct</text>
+<circle class="p-dot--open" cx="1025.6" cy="250" r="9"/>
+<text class="t-sm" x="1025.6" y="226" text-anchor="middle">29 Nov</text>
+<text class="t-sm" x="0" y="314">Each order 5,000 units. ● caused by the forecast (5) · ○ already short in SAP's plan (1)</text>
+            <defs><marker id="ah2" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#111"/></marker></defs>
+          </svg>
+        </div>
+        <div class="split reveal">
+          <div><b>Caused by the forecast</b>At least part of the order serves the new demand. These orders only exist because of the forecast change.</div>
+          <div class="open"><b>Already short in SAP's plan</b>The material would be short even without the forecast change. It needs attention either way.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8 · Trust -->
+    <section class="section dark frame-fit" id="trust" data-section="8">
+      <div class="section__inner frame-fit__inner">
+        <div class="split-head reveal">
+          <div>
+            <p class="kicker">Why you can trust it</p>
+            <h2>Built on SAP's plan. Checked every run.</h2>
+          </div>
+          <p class="lede">A simulation is only useful if planners believe it. Four built-in safeguards make the results checkable.</p>
+        </div>
+        <div class="cards cards--4 reveal">
+          <article class="card">
+            <p class="card__number">01</p>
+            <h3>Starts from SAP's own plan.</h3>
+            <p>Today's stock and every open order and demand are rebuilt from SAP. The rebuilt plan matched SAP's projected stock for all materials: 0 mismatches.</p>
+          </article>
+          <article class="card">
+            <p class="card__number">02</p>
+            <h3>Self-checked on every run.</h3>
+            <p>Before planning, the engine is tested on 4 hand-checked cases and 60 random cases against a separate, simpler MRP calculation. If any case fails, the run stops.</p>
+          </article>
+          <article class="card">
+            <p class="card__number">03</p>
+            <h3>Never changes SAP.</h3>
+            <p>It writes results to the Celonis dashboard only. Existing SAP orders are never changed; pull-forwards are proposals with the exact SAP order number.</p>
+          </article>
+          <article class="card">
+            <p class="card__number">04</p>
+            <h3>Says what it can't solve.</h3>
+            <p>Gaps are listed, not hidden. In this run that meant 300 exceptions: late orders, missing master data, and a finished good with no bill of materials.</p>
+          </article>
+        </div>
+        <div class="stats trust-strip reveal" aria-label="Run of 15 October 2026">
+          <div class="stat"><span class="stat__num">2</span><span class="stat__label">finished goods in the forecast upload</span></div>
+          <div class="stat"><span class="stat__num">400</span><span class="stat__label">materials re-planned</span></div>
+          <div class="stat"><span class="stat__num">1,300</span><span class="stat__label">production orders simulated</span></div>
+          <div class="stat"><span class="stat__num">Seconds</span><span class="stat__label">of planning · the rest of the ~30 min is data loading</span></div>
+        </div>
+        <p class="micro reveal" style="margin-top:.8rem">Example run · planning horizon of about 14 months.</p>
+      </div>
+    </section>
+
+    <!-- 9 · How to use it -->
+    <section class="section white" id="use" data-section="9">
+      <div class="section__inner">
+        <div class="split-head reveal">
+          <div>
+            <p class="kicker">How to use it</p>
+            <h2>Ask the question. Get the orders.</h2>
+          </div>
+          <p class="lede">Anyone can run it. It is built for questions where planners need to see the effect on purchasing before committing to anything in SAP.</p>
+        </div>
+        <div class="cards cards--4 reveal">
+          <article class="card"><p class="card__number">Playground</p><h3>"What if…?"</h3><p>Try any demand scenario freely. Nothing is created in SAP, so there is nothing to delete.</p></article>
+          <article class="card"><p class="card__number">Forecast change</p><h3>New forecast in.</h3><p>See exactly which raw-material orders the change needs, and which are already covered by existing orders.</p></article>
+          <article class="card"><p class="card__number">Seasonality</p><h3>Peak season ahead.</h3><p>Load the seasonal demand curve and see when materials get tight and when orders must go out.</p></article>
+          <article class="card"><p class="card__number">Strategic review</p><h3>Monthly or quarterly.</h3><p>Compare the purchasing and production load of the next quarters before S&amp;OP decisions.</p></article>
+        </div>
+        <div class="use__grid">
+          <div class="reveal">
+            <p class="kicker">The routine</p>
+            <ol class="routine">
+              <li><span><b>Upload the new demand</b> for the finished goods in Excel: product, quantity, date.</span></li>
+              <li><span><b>Press the button</b> in Celonis. Results arrive in about 30 minutes.</span></li>
+              <li><span><b>Start with what's late</b>, then pull-forwards, then new purchase orders.</span></li>
+              <li><span><b>Check the why</b> before acting: which product and demand each order serves.</span></li>
+              <li><span><b>Act in SAP</b>: reschedule the existing orders, create only the new orders that are needed, and fix the exceptions.</span></li>
+            </ol>
+          </div>
+          <div class="dash reveal">
+            <div class="dash__top">Procurement planning dashboard · what you see, what you do</div>
+            <div class="tabs" role="tablist" aria-label="Dashboard results" hidden>
+              <button class="tab" type="button" role="tab" id="tab-1" aria-controls="panel-1" aria-selected="true">Late orders</button>
+              <button class="tab" type="button" role="tab" id="tab-2" aria-controls="panel-2" aria-selected="false" tabindex="-1">Pull forward</button>
+              <button class="tab" type="button" role="tab" id="tab-3" aria-controls="panel-3" aria-selected="false" tabindex="-1">New purchase orders</button>
+              <button class="tab" type="button" role="tab" id="tab-4" aria-controls="panel-4" aria-selected="false" tabindex="-1">Why (pegging)</button>
+              <button class="tab" type="button" role="tab" id="tab-5" aria-controls="panel-5" aria-selected="false" tabindex="-1">Exceptions</button>
+            </div>
+            <div class="panel" id="panel-1" role="tabpanel" aria-labelledby="tab-1">
+              <p class="panel__title" style="margin:0;padding:1rem 1rem 0;background:var(--white)">Late orders</p>
+              <div><h4>What you see</h4><span class="num">250</span><p>New purchase orders whose order date has already passed, with the number of days late.</p></div>
+              <div><h4>What you do in SAP</h4><p>Order immediately and ask the supplier to expedite. Check whether production dates for the finished good are at risk.</p></div>
+            </div>
+            <div class="panel" id="panel-2" role="tabpanel" aria-labelledby="tab-2">
+              <p class="panel__title" style="margin:0;padding:1rem 1rem 0;background:var(--white)">Pull forward</p>
+              <div><h4>What you see</h4><span class="num">3,000</span><p>Existing SAP purchase orders and requisitions, with their SAP order number and current and new delivery date.</p></div>
+              <div><h4>What you do in SAP</h4><p>Reschedule the existing order to the new date and confirm with the supplier. No new order is needed.</p></div>
+            </div>
+            <div class="panel" id="panel-3" role="tabpanel" aria-labelledby="tab-3">
+              <p class="panel__title" style="margin:0;padding:1rem 1rem 0;background:var(--white)">New purchase orders</p>
+              <div><h4>What you see</h4><span class="num">2,200</span><p>Material, quantity, order date and delivery date for each order still needed after pull-forwards.</p></div>
+              <div><h4>What you do in SAP</h4><p>Create the order with the proposed quantity by the proposed order date.</p></div>
+            </div>
+            <div class="panel" id="panel-4" role="tabpanel" aria-labelledby="tab-4">
+              <p class="panel__title" style="margin:0;padding:1rem 1rem 0;background:var(--white)">Why (pegging)</p>
+              <div><h4>What you see</h4><span class="num">12,000</span><p>Links from each simulated order back to the finished good and the demand it serves, split into "caused by the forecast" and "already short".</p></div>
+              <div><h4>What you do in SAP</h4><p>Check the reason before acting. If a forecast is uncertain, its orders can wait; shortages that were already in SAP's plan cannot.</p></div>
+            </div>
+            <div class="panel" id="panel-5" role="tabpanel" aria-labelledby="tab-5">
+              <p class="panel__title" style="margin:0;padding:1rem 1rem 0;background:var(--white)">Exceptions</p>
+              <div><h4>What you see</h4><span class="num">300</span><p>Things the simulator could not solve or wants checked: missing master data, a finished good without a BOM, stock above target after lot sizing.</p></div>
+              <div><h4>What you do in SAP</h4><p>Fix the master data at the source, or plan these materials by hand. Errors are shown first.</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 10 · Next -->
+    <section class="section dark frame-fit" id="next" data-section="10">
+      <div class="section__inner frame-fit__inner next__grid">
+        <div class="reveal">
+          <p class="kicker">What comes next</p>
+          <h2>From strategic tool to everyday planning.</h2>
+          <p class="lede">Today the simulator answers strategic questions in about 30 minutes. Almost all of that time is loading data; the planning itself takes seconds. Faster loading makes it semi-operational: quick enough for weekly or even daily planning decisions.</p>
+          <p class="close__final">Next forecast change: run the simulator before ordering anything new.</p>
+        </div>
+        <div class="reveal">
+          <svg viewBox="0 0 520 260" role="img" aria-label="Run time today is about 30 minutes, almost all data loading, with planning taking only seconds. With faster loading, the same run becomes short enough for semi-operational use.">
+            <text class="n-lbl" x="0" y="20">Today · strategic</text>
+            <rect class="n-track" x="0" y="32" width="520" height="22" rx="2"/>
+            <rect class="n-bar--soft" x="0" y="32" width="514" height="22" rx="2"/>
+            <rect class="n-bar" x="514" y="32" width="6" height="22"/>
+            <text class="n-txt" x="0" y="80">≈ 30 min</text>
+            <text class="n-sub" x="520" y="80" text-anchor="end">data loading · planning takes seconds</text>
+            <text class="n-sub" x="0" y="100">Playground · forecast changes · seasonality · monthly &amp; quarterly reviews</text>
+            <text class="n-lbl" x="0" y="160">With faster loading · semi-operational</text>
+            <rect class="n-track" x="0" y="172" width="520" height="22" rx="2"/>
+            <rect class="n-bar--soft" x="0" y="172" width="80" height="22" rx="2"/>
+            <rect class="n-bar" x="80" y="172" width="6" height="22"/>
+            <text class="n-txt" x="0" y="220">Minutes, not half an hour</text>
+            <text class="n-sub" x="0" y="240">Weekly and day-to-day planning decisions</text>
+          </svg>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="section-nav" aria-label="Presentation navigation">
+    <button class="section-nav__button" type="button" data-section-nav="previous" aria-label="Previous section" disabled>↑</button>
+    <button class="section-nav__button" type="button" data-section-nav="next" aria-label="Next section">↓</button>
+  </nav>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+  <script>
+    (() => {
+      const root = document.documentElement;
+      root.classList.add('js');
+
+      const sections = [...document.querySelectorAll('[data-section]')];
+      const previousButton = document.querySelector('[data-section-nav="previous"]');
+      const nextButton = document.querySelector('[data-section-nav="next"]');
+      const progressBar = document.querySelector('.progress');
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const hasGsap = typeof window.gsap !== 'undefined' && typeof window.ScrollTrigger !== 'undefined';
+      const canAnimate = hasGsap && !reduceMotion;
+
+      function setProgress(index) {
+        const current = Math.max(1, Math.min(sections.length, index));
+        if (previousButton) previousButton.disabled = current <= 1;
+        if (nextButton) nextButton.disabled = current >= sections.length;
+      }
+      function isTextEntry(target) {
+        if (!(target instanceof HTMLElement)) return false;
+        return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName);
+      }
+      function currentSectionIndex() {
+        const marker = window.scrollY + window.innerHeight * .4;
+        let current = 0;
+        sections.forEach((section, index) => {
+          if (marker >= section.getBoundingClientRect().top + window.scrollY) current = index;
+        });
+        return current;
+      }
+      function goToSection(index) {
+        const target = sections[index];
+        if (!target) return;
+        target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+        setProgress(index + 1);
+      }
+      previousButton?.addEventListener('click', () => goToSection(currentSectionIndex() - 1));
+      nextButton?.addEventListener('click', () => goToSection(currentSectionIndex() + 1));
+      setProgress(1);
+
+      document.addEventListener('keydown', (event) => {
+        if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || isTextEntry(event.target)) return;
+        const direction = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
+        if (!direction) return;
+        event.preventDefault();
+        goToSection(currentSectionIndex() + direction);
+      });
+
+      const updateBar = () => {
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        if (progressBar) progressBar.style.transform = `scaleX(${max > 0 ? window.scrollY / max : 0})`;
+      };
+      window.addEventListener('scroll', updateBar, { passive: true });
+      updateBar();
+
+      // Dashboard tabs: without JS every panel stays visible; with JS they become an ARIA tablist.
+      const tablist = document.querySelector('[role="tablist"]');
+      if (tablist) {
+        const tabs = [...tablist.querySelectorAll('[role="tab"]')];
+        const select = (tab, focus) => {
+          tabs.forEach((t) => {
+            const on = t === tab;
+            t.setAttribute('aria-selected', String(on));
+            t.tabIndex = on ? 0 : -1;
+            document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+          });
+          if (focus) tab.focus();
+        };
+        tablist.hidden = false;
+        document.querySelectorAll('.panel__title').forEach((title) => title.classList.add('visually-hidden'));
+        tabs.forEach((tab, i) => {
+          tab.addEventListener('click', () => select(tab, false));
+          tab.addEventListener('keydown', (e) => {
+            const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+            if (e.key === 'Home') { e.preventDefault(); select(tabs[0], true); }
+            else if (e.key === 'End') { e.preventDefault(); select(tabs[tabs.length - 1], true); }
+            else if (step) { e.preventDefault(); select(tabs[(i + step + tabs.length) % tabs.length], true); }
+          });
+        });
+        select(tabs[0], false);
+      }
+
+      function setBeat(scene, index) {
+        scene.querySelectorAll('.beat').forEach((beat, i) => beat.classList.toggle('is-active', i === index));
+      }
+      function showFinalState() {
+        root.classList.add('motion-disabled');
+        document.querySelectorAll('[data-scene]').forEach((scene) => setBeat(scene, scene.querySelectorAll('.beat').length - 1));
+      }
+
+      if ('IntersectionObserver' in window && sections.length) {
+        const sectionObserver = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => { if (entry.isIntersecting) setProgress(sections.indexOf(entry.target) + 1); });
+        }, { threshold: .35 });
+        sections.forEach((section) => sectionObserver.observe(section));
+      }
+
+      if (!canAnimate) { showFinalState(); return; }
+
+      gsap.registerPlugin(ScrollTrigger);
+      document.body.classList.add('motion-ready');
+
+      gsap.utils.toArray('.reveal').forEach((element) => {
+        gsap.from(element, { opacity: 0, y: 16, duration: .7, ease: 'power2.out', scrollTrigger: { trigger: element, start: 'top 88%', once: true } });
+      });
+
+      // Groups tagged data-step="n" appear on beat n; step 0 is visible at the start of the scene.
+      function buildSceneTimeline(scene, tl) {
+        const steps = scene.querySelectorAll('.beat').length;
+        for (let n = 1; n < steps; n++) {
+          const groups = scene.querySelectorAll(`.stage [data-step="${n}"]`);
+          if (groups.length) tl.from(groups, { autoAlpha: 0, y: 10, duration: .6 }, n - .6);
+        }
+        tl.to({}, { duration: .6 }, steps - .6);
+        return steps;
+      }
+
+      const mm = gsap.matchMedia();
+      mm.add('(min-width: 901px)', () => {
+        document.querySelectorAll('[data-scene]').forEach((scene) => {
+          const tl = gsap.timeline({ defaults: { ease: 'none' } });
+          const steps = buildSceneTimeline(scene, tl);
+          ScrollTrigger.create({
+            trigger: scene, start: 'top top', end: 'bottom bottom', scrub: .4, animation: tl, invalidateOnRefresh: true,
+            onUpdate: (self) => setBeat(scene, Math.min(steps - 1, Math.floor(self.progress * steps * 1.02)))
+          });
+        });
+      });
+      mm.add('(max-width: 900px)', () => {
+        document.querySelectorAll('[data-scene]').forEach((scene) => {
+          const tl = gsap.timeline({ paused: true, defaults: { ease: 'power2.out' } });
+          const steps = buildSceneTimeline(scene, tl);
+          tl.timeScale(tl.duration() / 1.6);
+          setBeat(scene, steps - 1);
+          ScrollTrigger.create({ trigger: scene.querySelector('.stage'), start: 'top 80%', once: true, onEnter: () => tl.play() });
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

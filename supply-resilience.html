@@ -1,0 +1,1216 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="data:," />
+  <meta name="description" content="How a daily supply resilience ranking finds the parts that would hurt most if supply stopped, why it can be trusted, and what to do with it." />
+  <title>Supply Resilience Ranking</title>
+
+  <!-- Poppins (Celonis brand font) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --black: #000;
+      --white: #fff;
+      --paper: #f5f5f5;
+      --ink: #111;
+      --muted: #686868;
+      --faint: #9a9a9a;
+      --line: #d3d3d3;
+      --accent: #5865c9;
+      --red: #bf281b;
+      --max: 1240px;
+      --gutter: clamp(1.25rem, 4vw, 4.5rem);
+
+      --frame-y: clamp(1.25rem, 6svh, 5rem);
+      --display-fit: clamp(2.5rem, min(7vw, 11svh), 7rem);
+      --heading-fit: clamp(1.9rem, min(4.4vw, 6.5svh), 4.4rem);
+      --body-fit: clamp(.9rem, min(1.2vw, 2.1svh), 1.08rem);
+      --gap-fit: clamp(1rem, 3svh, 3rem);
+    }
+
+    * { box-sizing: border-box; }
+    html { background: var(--paper); scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      overflow-x: hidden;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Poppins", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-weight: 400;
+      line-height: 1.5;
+    }
+    body::selection { background: var(--accent); color: var(--white); }
+    img, svg { max-width: 100%; }
+    button { font: inherit; }
+    a { color: inherit; }
+
+    .section-nav { position: fixed; z-index: 50; right: clamp(1rem, 3vw, 2.75rem); bottom: clamp(1rem, 3vw, 2.25rem); display: grid; gap: .35rem; }
+    .section-nav__button {
+      display: grid; width: 2.45rem; height: 2.45rem; place-items: center; padding: 0;
+      border: 1px solid rgba(255,255,255,.42); border-radius: 50%; background: rgba(0,0,0,.84); color: var(--white);
+      cursor: pointer; font-size: 1.15rem; line-height: 1; transition: opacity .2s ease, background .2s ease, transform .2s ease;
+    }
+    .section-nav__button:hover:not(:disabled) { background: #333; transform: translateY(-1px); }
+    .section-nav__button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    .section-nav__button:disabled { cursor: default; opacity: .35; }
+
+    .progress { position: fixed; z-index: 60; top: 0; left: 0; height: 2px; width: 100%; transform-origin: 0 50%; transform: scaleX(0); background: var(--ink); mix-blend-mode: difference; filter: invert(1); }
+
+    .section { position: relative; padding: clamp(4rem, 10svh, 8rem) var(--gutter); }
+    .section__inner { width: min(100%, var(--max)); margin: 0 auto; }
+    .dark { background: var(--black); color: var(--white); }
+    .paper { background: var(--paper); color: var(--ink); }
+    .white { background: var(--white); color: var(--ink); }
+    .kicker { margin: 0 0 .9rem; color: var(--muted); font-size: .7rem; font-weight: 500; letter-spacing: .16em; line-height: 1.3; text-transform: uppercase; }
+    .dark .kicker { color: rgba(255,255,255,.58); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1, h2, h3 { letter-spacing: -.045em; line-height: 1.04; font-weight: 500; }
+    h1 { margin-bottom: 1rem; }
+    h2 { margin-bottom: .9rem; }
+    h3 { margin-bottom: .55rem; }
+    .lede { max-width: 56ch; color: var(--muted); font-size: var(--body-fit); line-height: 1.6; }
+    .dark .lede { color: rgba(255,255,255,.72); }
+    .micro { color: var(--muted); font-size: .76rem; line-height: 1.5; }
+    .dark .micro { color: rgba(255,255,255,.55); }
+    strong { font-weight: 600; }
+
+    .frame-fit { min-height: 100svh; min-height: 100dvh; display: grid; place-items: center; padding: var(--frame-y) var(--gutter); }
+    .frame-fit__inner { min-height: calc(100dvh - var(--frame-y) - var(--frame-y)); position: relative; display: grid; align-content: center; }
+    .frame-fit h1 { font-size: var(--display-fit); }
+    .frame-fit h2, .section h2 { font-size: var(--heading-fit); }
+
+    /* Hero */
+    .hero { overflow: hidden; }
+    .hero .frame-fit__inner { overflow: hidden; }
+    .hero__grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(18rem, .85fr); align-items: end; gap: var(--gap-fit); position: relative; z-index: 1; }
+    .hero h1 { max-width: 13ch; }
+    .hero__aside .lede { max-width: 34rem; }
+    .hero__diagram { position: absolute; right: -2%; top: 6%; width: min(48%, 40rem); opacity: .3; pointer-events: none; z-index: 0; color: var(--white); }
+    .hero-focus-line { fill: none; stroke: var(--white); stroke-width: 2.2; }
+    .hero-focus { fill: var(--white); }
+    .hero__diagram .svg-line { opacity: .45; }
+    .hero__diagram .svg-node { fill: var(--black); stroke: var(--white); }
+    .scroll-hint { margin-top: clamp(1.5rem, 5svh, 3rem); }
+
+    /* Context */
+    .split-head { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); align-items: end; gap: var(--gap-fit); margin-bottom: clamp(1.25rem, 4svh, 3rem); }
+    .split-head h2 { max-width: 13ch; margin-bottom: 0; }
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); margin-bottom: clamp(1rem, 3svh, 2rem); }
+    .stat { background: var(--paper); padding: clamp(.9rem, 2.2svh, 1.6rem); }
+    .stat__num { display: block; font-size: clamp(1.5rem, min(3vw, 5svh), 2.6rem); font-weight: 500; letter-spacing: -.04em; line-height: 1; margin-bottom: .45rem; }
+    .stat__label { color: var(--muted); font-size: .78rem; line-height: 1.4; }
+    .dark .stats { background: rgba(255,255,255,.18); border-color: rgba(255,255,255,.18); }
+    .dark .stat { background: var(--black); }
+    .dark .stat__label { color: rgba(255,255,255,.6); }
+
+    .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; border: 1px solid var(--line); background: var(--line); }
+    .card { padding: clamp(1rem, 2.5svh, 1.8rem); background: var(--paper); }
+    .card__number { margin-bottom: clamp(.8rem, 2.5svh, 1.6rem); color: var(--faint); font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; }
+    .card h3 { font-size: clamp(1.05rem, min(1.7vw, 3svh), 1.45rem); }
+    .card p { margin-bottom: 0; color: var(--muted); font-size: clamp(.8rem, min(1vw, 1.8svh), .93rem); }
+    .card .miss { display: block; margin-top: .8rem; color: var(--ink); font-size: .8rem; font-weight: 500; }
+
+    /* Scenes */
+    .scene { min-height: 330svh; padding-top: 0; padding-bottom: 0; }
+    .scene--3 { min-height: 280svh; }
+    .scene__pin { min-height: 100svh; min-height: 100dvh; display: grid; grid-template-columns: minmax(17rem, .78fr) minmax(0, 1.22fr); align-items: center; gap: var(--gap-fit); }
+    .scene__copy { padding: var(--frame-y) 0; }
+    .scene__copy h2 { max-width: 13ch; }
+    .scene__copy > div > p:not(.kicker) { max-width: 40ch; color: var(--muted); font-size: var(--body-fit); }
+    .dark .scene__copy > div > p:not(.kicker) { color: rgba(255,255,255,.68); }
+    .scene__beats { display: grid; gap: .7rem; margin: clamp(1rem, 3svh, 2rem) 0 0; padding: 0; list-style: none; }
+    .beat { display: grid; grid-template-columns: 1.1rem 1fr; gap: .55rem; align-items: start; color: var(--muted); font-size: clamp(.78rem, min(1vw, 1.75svh), .9rem); line-height: 1.45; transition: color .25s ease; }
+    .beat::before { width: 7px; height: 7px; margin-top: .45rem; border: 1px solid currentColor; border-radius: 50%; content: ""; }
+    .beat b { font-weight: 600; }
+    .dark .beat { color: rgba(255,255,255,.5); }
+    .beat.is-active { color: var(--ink); }
+    .dark .beat.is-active { color: var(--white); }
+    .beat.is-active::before { background: currentColor; }
+    .stage { display: grid; min-height: min(62svh, 38rem); place-items: center; padding: 1rem 0; }
+    .stage svg { width: 100%; height: auto; max-height: 84svh; overflow: visible; }
+    svg text { font-family: "Poppins", system-ui, sans-serif; }
+    .svg-line { fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: round; }
+    .svg-node { fill: var(--paper); stroke: currentColor; stroke-width: 1.3; }
+    .lbl { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; fill: var(--muted); }
+    .t-big { font-size: 46px; font-weight: 500; letter-spacing: -.04em; fill: var(--ink); }
+    .t-mid { font-size: 13px; fill: var(--ink); }
+    .t-sm { font-size: 11px; fill: var(--muted); }
+    .panel-bg { fill: var(--white); stroke: var(--line); }
+
+    /* Part A card */
+    .part-card { display: inline-grid; grid-template-columns: auto 1fr; gap: .25rem .9rem; align-items: center; margin-top: .4rem; padding: .7rem .9rem; border: 1px solid var(--line); border-radius: 4px; background: var(--white); font-size: .8rem; }
+    .part-card__tag { grid-row: span 2; display: grid; width: 2.3rem; height: 2.3rem; place-items: center; border-radius: 50%; background: var(--accent); color: var(--white); font-weight: 600; }
+    .part-card span { color: var(--muted); }
+    .part-card .part-card__tag { color: var(--white); }
+
+    /* Panels: Part A */
+    .dot { fill: var(--accent); }
+    .ltdot { fill: var(--ink); }
+    .lt-line { fill: none; stroke: var(--ink); stroke-width: 1; opacity: .35; }
+    .band { fill: var(--accent); opacity: .14; }
+    .mean { stroke: var(--accent); stroke-width: 1.2; stroke-dasharray: 3 3; }
+    .bar-track { fill: #ececec; }
+    .bar-ink { fill: var(--ink); }
+    .bar-accent { fill: var(--accent); }
+    .gap-mark { stroke: var(--red); stroke-width: 1.3; }
+    .t-red { fill: var(--red); font-weight: 600; }
+
+    /* Matrix */
+    .mdot { fill: var(--ink); opacity: .18; }
+    .quad { fill: var(--ink); opacity: .05; }
+    .contour { fill: none; stroke: var(--ink); stroke-width: 1; stroke-dasharray: 4 4; opacity: .45; }
+    .axis { stroke: var(--ink); stroke-width: 1.2; }
+    .grid-line { stroke: var(--line); stroke-width: 1; }
+    .q-hl { fill: none; stroke: var(--ink); stroke-width: 1.4; }
+    .parta-ring { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+    .parta { fill: var(--accent); }
+    .legend-list { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem 1.4rem; margin-top: clamp(1rem, 3svh, 1.8rem); font-size: .78rem; color: var(--muted); }
+    .legend-list h3 { font-size: .7rem; letter-spacing: .14em; text-transform: uppercase; font-weight: 500; color: var(--ink); margin: 0 0 .3rem; }
+    .legend-list ul { margin: 0; padding-left: 1rem; }
+
+    /* Signals */
+    .signals__grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: var(--gap-fit); align-items: center; }
+    .signals__grid svg { width: 100%; height: auto; }
+    .signals__grid .stats, .warn__grid .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: clamp(1rem, 3svh, 2rem); }
+    .flow-box { fill: var(--white); stroke: var(--line); }
+    .flow-box--out { fill: var(--ink); stroke: var(--ink); }
+    .flow-line { fill: none; stroke: var(--ink); stroke-width: 1.2; }
+    .t-inv { fill: var(--white); }
+
+    /* Proof */
+    .waffle-base { fill: rgba(255,255,255,.16); }
+    .waffle-hit { fill: var(--white); }
+    .dark .lbl { fill: rgba(255,255,255,.55); }
+    .p-num { font-size: 30px; font-weight: 500; letter-spacing: -.03em; fill: var(--white); }
+    .p-txt { font-size: 12px; fill: rgba(255,255,255,.75); }
+    .p-track { fill: rgba(255,255,255,.1); }
+    .p-bar { fill: var(--white); }
+    .p-bar--quiet { fill: rgba(255,255,255,.38); }
+    .p-mark { stroke: rgba(255,255,255,.55); stroke-width: 1; stroke-dasharray: 2 3; }
+
+    /* Early warning */
+    .warn__grid { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: var(--gap-fit); align-items: center; }
+    .warn__grid svg { width: 100%; height: auto; }
+    .w-bar { fill: var(--ink); }
+    .w-bar--last { fill: var(--ink); }
+    .w-event { stroke: var(--red); stroke-width: 1.5; }
+    .w-axis { stroke: var(--ink); stroke-width: 1; }
+
+    /* Playbook */
+    .playbook__grid { display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); gap: var(--gap-fit); align-items: start; }
+    .routine { margin: 0 0 clamp(1.2rem, 3svh, 2rem); padding: 0; list-style: none; display: grid; gap: .6rem; counter-reset: step; }
+    .routine li { display: grid; grid-template-columns: 1.9rem 1fr; gap: .7rem; align-items: start; font-size: .9rem; color: var(--muted); counter-increment: step; }
+    .routine li::before { content: counter(step); display: grid; width: 1.9rem; height: 1.9rem; place-items: center; border: 1px solid var(--ink); border-radius: 50%; color: var(--ink); font-size: .78rem; font-weight: 500; }
+    .routine li b { color: var(--ink); font-weight: 500; }
+
+    .dash { border: 1px solid var(--line); border-radius: 8px; background: var(--white); overflow: hidden; }
+    .dash__top { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .65rem 1rem; border-bottom: 1px solid var(--line); font-size: .72rem; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+    .dash__row { display: grid; grid-template-columns: 2.4rem 1fr auto; gap: .9rem; align-items: center; padding: 1rem; border-bottom: 1px solid var(--line); }
+    .dash__rank { font-size: 1.4rem; font-weight: 500; letter-spacing: -.03em; }
+    .dash__name { font-weight: 500; font-size: .95rem; line-height: 1.3; }
+    .dash__name span { display: block; color: var(--muted); font-weight: 400; font-size: .76rem; }
+    .score { text-align: right; }
+    .score b { display: block; font-size: 1.3rem; font-weight: 500; letter-spacing: -.03em; }
+    .score span { font-size: .7rem; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+    .dash__fig { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--line); border-bottom: 1px solid var(--line); }
+    .fig { background: var(--white); padding: .7rem 1rem; font-size: .76rem; color: var(--muted); }
+    .fig b { display: block; color: var(--ink); font-size: .98rem; font-weight: 500; }
+    .meter { display: block; height: 4px; margin-top: .4rem; background: #ececec; border-radius: 2px; overflow: hidden; }
+    .meter i { display: block; height: 100%; background: var(--ink); }
+    .dash__signals { padding: .9rem 1rem 1rem; }
+    .dash__signals p { margin: 0 0 .6rem; font-size: .72rem; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+    .chips { display: flex; flex-wrap: wrap; gap: .45rem; }
+    .chip { display: inline-flex; align-items: center; gap: .45rem; padding: .42rem .75rem; border: 1px solid var(--line); border-radius: 999px; background: var(--white); color: var(--ink); cursor: pointer; font-size: .78rem; transition: background .2s ease, border-color .2s ease, color .2s ease; }
+    .chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ink); }
+    .chip[data-level="watch"]::before { background: transparent; border: 1px solid var(--ink); }
+    .chip:hover { border-color: var(--ink); }
+    .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--white); }
+    .chip[aria-pressed="true"]::before { background: var(--white); border-color: var(--white); }
+
+    .actions { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); }
+    .action { display: grid; grid-template-columns: 2.2rem 1fr; gap: .9rem; padding: clamp(.9rem, 2.2svh, 1.3rem) 1.1rem; background: var(--paper); transition: background .25s ease, box-shadow .25s ease; }
+    .action__n { color: var(--faint); font-size: .72rem; letter-spacing: .12em; padding-top: .2rem; }
+    .action h3 { font-size: clamp(1rem, 1.5vw, 1.2rem); margin-bottom: .35rem; }
+    .action p { margin: 0; color: var(--muted); font-size: .85rem; }
+    .action .when { display: block; margin-bottom: .35rem; color: var(--ink); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; font-weight: 500; }
+    .action .who { display: block; margin-top: .45rem; font-size: .76rem; color: var(--ink); }
+    .action.is-lit { background: var(--white); box-shadow: inset 3px 0 0 var(--accent); }
+    .action.is-lit .action__n { color: var(--accent); }
+
+    /* Proactive vs business impact */
+    .proactive__grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: var(--gap-fit); align-items: center; }
+    .proactive__grid svg { width: 100%; height: auto; }
+    .formula { display: block; margin: .2rem 0 0; padding: .7rem .9rem; border-left: 2px solid var(--ink); background: var(--paper); color: var(--ink); font-size: .86rem; line-height: 1.45; }
+    .compare { width: 100%; border-collapse: collapse; font-size: clamp(.78rem, 1vw, .9rem); line-height: 1.4; }
+    .compare th, .compare td { text-align: left; vertical-align: top; padding: .75rem .9rem; border-bottom: 1px solid var(--line); }
+    .compare thead th { font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 500; color: var(--muted); }
+    .compare tbody th { width: 22%; font-weight: 500; }
+    .compare td { color: var(--muted); }
+    .compare td:last-child, .compare thead th:last-child { background: var(--paper); color: var(--ink); }
+    .compare td:last-child { font-weight: 500; }
+    .takeaway { max-width: 62ch; margin: clamp(1rem, 3svh, 2rem) 0 0; font-size: clamp(1.02rem, 1.5vw, 1.3rem); font-weight: 500; letter-spacing: -.02em; line-height: 1.35; }
+    .ex-bar-bi { fill: var(--faint); }
+
+    /* Survive vs recover (dark scene) */
+    .sv-axis { stroke: rgba(255,255,255,.5); stroke-width: 1; }
+    .sv-tick { fill: rgba(255,255,255,.55); font-size: 11px; }
+    .sv-lbl { fill: rgba(255,255,255,.62); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; }
+    .sv-txt { fill: var(--white); font-size: 13px; }
+    .sv-sub { fill: rgba(255,255,255,.6); font-size: 11px; }
+    .sv-bar { fill: var(--white); }
+    .sv-bar--soft { fill: rgba(255,255,255,.38); }
+    .sv-dash { stroke: rgba(255,255,255,.45); stroke-width: 1; stroke-dasharray: 3 4; }
+    .sv-gap { fill: #ff6b5b; opacity: .16; }
+    .sv-gap-line { stroke: #ff6b5b; stroke-width: 1.4; }
+    .sv-gap-txt { fill: #ff7a6b; font-size: 24px; font-weight: 500; letter-spacing: -.02em; }
+    .rule { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin-top: clamp(1rem, 3svh, 1.6rem); background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.18); }
+    .rule div { padding: .7rem .85rem; background: var(--black); font-size: .78rem; color: rgba(255,255,255,.66); line-height: 1.4; }
+    .rule b { display: block; margin-bottom: .2rem; color: var(--white); font-weight: 500; font-size: .82rem; }
+
+    /* Close */
+    .close__grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(17rem, .9fr); align-items: start; gap: var(--gap-fit); }
+    .close h2 { max-width: 12ch; }
+    .next-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 1px; background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.18); }
+    .next-list li { background: var(--black); padding: clamp(.9rem, 2.2svh, 1.3rem) 1.1rem; }
+    .next-list b { display: block; font-size: 1.05rem; font-weight: 500; margin-bottom: .25rem; }
+    .next-list span { color: rgba(255,255,255,.66); font-size: .86rem; }
+    .close__final { margin-top: clamp(1.5rem, 5svh, 3rem); font-size: clamp(1.2rem, 2vw, 1.6rem); font-weight: 500; letter-spacing: -.03em; }
+
+    .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    .reveal { opacity: 1; transform: none; }
+
+    .scene__pin { position: static; }
+    .motion-ready .scene__pin { position: sticky; top: 0; }
+
+    @media (max-width: 900px) {
+      .hero__grid, .split-head, .scene__pin, .close__grid, .signals__grid, .warn__grid, .playbook__grid, .proactive__grid { grid-template-columns: 1fr; }
+      .hero__diagram { width: 92%; top: 4%; opacity: .2; }
+      .scene, .scene--3 { min-height: auto; padding-top: var(--frame-y); padding-bottom: var(--frame-y); }
+      .scene__pin { min-height: auto; }
+      .motion-ready .scene__pin { position: static; }
+      .stage { min-height: 0; }
+      .stage svg { max-height: none; }
+      .beat, .dark .beat { color: inherit; }
+      .beat::before { background: currentColor; }
+      .cards { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-height: 720px) and (orientation: landscape) {
+      :root { --frame-y: clamp(.75rem, 3svh, 1.5rem); --gap-fit: clamp(.75rem, 2svh, 1.5rem); }
+    }
+    @media (max-width: 620px) {
+      .legend-list, .rule { grid-template-columns: 1fr; }
+      .compare th, .compare td { padding: .55rem .45rem; }
+      .compare { font-size: .74rem; }
+      .dash__row { grid-template-columns: 2rem 1fr; }
+      .score { grid-column: 1 / -1; text-align: left; display: flex; gap: .5rem; align-items: baseline; }
+      .section-nav { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="progress" aria-hidden="true"></div>
+  <main aria-keyshortcuts="ArrowUp ArrowDown">
+
+    <!-- 1 · The question -->
+    <section class="section dark frame-fit hero" id="question" data-section="1">
+      <div class="section__inner frame-fit__inner">
+        <svg class="hero__diagram" viewBox="0 0 680 400" role="img" aria-label="A bill of materials drawn as a network: purchased parts on the left feed sub-assemblies in the middle, which feed finished products on the right. One highlighted part fans out to every sub-assembly.">
+          <path class="svg-line" d="M60 40 L330 125"/>
+<path class="svg-line" d="M60 40 L330 345"/>
+<path class="svg-line" d="M60 70 L330 290"/>
+<path class="svg-line" d="M60 70 L330 70"/>
+<path class="svg-line" d="M60 100 L330 235"/>
+<path class="svg-line" d="M60 100 L330 180"/>
+<path class="svg-line" d="M60 130 L330 235"/>
+<path class="svg-line" d="M60 130 L330 290"/>
+<path class="svg-line" d="M60 190 L330 125"/>
+<path class="svg-line" d="M60 190 L330 290"/>
+<path class="svg-line" d="M60 220 L330 125"/>
+<path class="svg-line" d="M60 220 L330 180"/>
+<path class="svg-line" d="M60 250 L330 235"/>
+<path class="svg-line" d="M60 250 L330 70"/>
+<path class="svg-line" d="M60 280 L330 345"/>
+<path class="svg-line" d="M60 280 L330 70"/>
+<path class="svg-line" d="M60 310 L330 235"/>
+<path class="svg-line" d="M60 310 L330 180"/>
+<path class="svg-line" d="M60 340 L330 235"/>
+<path class="svg-line" d="M60 340 L330 290"/>
+<path class="svg-line" d="M60 370 L330 70"/>
+<path class="svg-line" d="M60 370 L330 180"/>
+<path class="svg-line" d="M330 70 L620 230"/>
+<path class="svg-line" d="M330 70 L620 158"/>
+<path class="svg-line" d="M330 70 L620 194"/>
+<path class="svg-line" d="M330 125 L620 50"/>
+<path class="svg-line" d="M330 125 L620 86"/>
+<path class="svg-line" d="M330 125 L620 338"/>
+<path class="svg-line" d="M330 180 L620 266"/>
+<path class="svg-line" d="M330 180 L620 86"/>
+<path class="svg-line" d="M330 180 L620 194"/>
+<path class="svg-line" d="M330 235 L620 266"/>
+<path class="svg-line" d="M330 235 L620 86"/>
+<path class="svg-line" d="M330 235 L620 50"/>
+<path class="svg-line" d="M330 290 L620 50"/>
+<path class="svg-line" d="M330 290 L620 158"/>
+<path class="svg-line" d="M330 290 L620 338"/>
+<path class="svg-line" d="M330 345 L620 50"/>
+<path class="svg-line" d="M330 345 L620 302"/>
+<path class="svg-line" d="M330 345 L620 266"/>
+<path class="hero-focus-line" d="M60 160 L330 70"/>
+<path class="hero-focus-line" d="M60 160 L330 125"/>
+<path class="hero-focus-line" d="M60 160 L330 180"/>
+<path class="hero-focus-line" d="M60 160 L330 235"/>
+<path class="hero-focus-line" d="M60 160 L330 290"/>
+<path class="hero-focus-line" d="M60 160 L330 345"/>
+<circle class="svg-node" cx="60" cy="40" r="6"/><circle class="svg-node" cx="60" cy="70" r="6"/><circle class="svg-node" cx="60" cy="100" r="6"/><circle class="svg-node" cx="60" cy="130" r="6"/><circle class="svg-node" cx="60" cy="190" r="6"/><circle class="svg-node" cx="60" cy="220" r="6"/><circle class="svg-node" cx="60" cy="250" r="6"/><circle class="svg-node" cx="60" cy="280" r="6"/><circle class="svg-node" cx="60" cy="310" r="6"/><circle class="svg-node" cx="60" cy="340" r="6"/><circle class="svg-node" cx="60" cy="370" r="6"/><circle class="svg-node" cx="330" cy="70" r="6"/><circle class="svg-node" cx="330" cy="125" r="6"/><circle class="svg-node" cx="330" cy="180" r="6"/><circle class="svg-node" cx="330" cy="235" r="6"/><circle class="svg-node" cx="330" cy="290" r="6"/><circle class="svg-node" cx="330" cy="345" r="6"/><circle class="svg-node" cx="620" cy="50" r="6"/><circle class="svg-node" cx="620" cy="86" r="6"/><circle class="svg-node" cx="620" cy="122" r="6"/><circle class="svg-node" cx="620" cy="158" r="6"/><circle class="svg-node" cx="620" cy="194" r="6"/><circle class="svg-node" cx="620" cy="230" r="6"/><circle class="svg-node" cx="620" cy="266" r="6"/><circle class="svg-node" cx="620" cy="302" r="6"/><circle class="svg-node" cx="620" cy="338" r="6"/><circle class="svg-node" cx="620" cy="374" r="6"/>
+<circle class="hero-focus" cx="60" cy="160" r="9"/>
+        </svg>
+        <div class="hero__grid">
+          <div class="reveal">
+            <p class="kicker">Example · Supply resilience</p>
+            <h1>If one supplier stopped tomorrow, which part would hurt most?</h1>
+          </div>
+          <div class="hero__aside reveal">
+            <p class="lede">A manufacturer buys tens of thousands of parts. Most could slip for a week and nobody would notice. A few would stop production lines within days. This page explains how the daily resilience ranking finds those few, why you can trust it, and what to do when a part reaches the top.</p>
+            
+            <p class="micro" style="margin-top:.6rem;opacity:.8">Illustrative example · all names and figures are representative, not from a real company.</p>
+            <p class="micro scroll-hint">About 8 minutes · Scroll or use ↓ to continue</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2 · Why the usual view falls short -->
+    <section class="section paper frame-fit" id="problem" data-section="2">
+      <div class="section__inner frame-fit__inner">
+        <div class="split-head reveal">
+          <div>
+            <p class="kicker">The challenge</p>
+            <h2>Not every part is equally dangerous to lose.</h2>
+          </div>
+          <p class="lede">Every day, buyers and planners have to decide where to look first. The data exists, but each report on its own shows only part of the risk.</p>
+        </div>
+        <div class="stats reveal" aria-label="Scope of the analysis">
+          <div class="stat"><span class="stat__num">35,000</span><span class="stat__label">parts and products in the bill of materials</span></div>
+          <div class="stat"><span class="stat__num">200,000</span><span class="stat__label">"goes into" links between them</span></div>
+          <div class="stat"><span class="stat__num">2 M</span><span class="stat__label">goods receipts over the last two years</span></div>
+          <div class="stat"><span class="stat__num">5,000</span><span class="stat__label">suppliers with an external risk rating</span></div>
+        </div>
+        <div class="cards reveal">
+          <article class="card">
+            <p class="card__number">Stock report</p>
+            <h3>Low stock looks urgent.</h3>
+            <p>But it can't tell you whether the part feeds one niche product or half the portfolio.</p>
+            <span class="miss">Misses: how far the damage spreads</span>
+          </article>
+          <article class="card">
+            <p class="card__number">Supplier rating</p>
+            <h3>A weak supplier looks risky.</h3>
+            <p>But if it supplies a part with plenty of stock and a backup source, it can wait.</p>
+            <span class="miss">Misses: whether it actually matters</span>
+          </article>
+          <article class="card">
+            <p class="card__number">Lead time in ERP</p>
+            <h3>The planned lead time looks stable.</h3>
+            <p>But the real deliveries may already be drifting, and the plan still assumes everything arrives on time.</p>
+            <span class="miss">Misses: the early warning in your own receipts</span>
+          </article>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- 2b · Proactive vs business impact -->
+    <section class="section white frame-fit" id="proactive" data-section="3">
+      <div class="section__inner frame-fit__inner">
+        <div class="split-head reveal">
+          <div>
+            <p class="kicker">From measuring the loss to preventing it</p>
+            <h2>Business impact sizes the loss. The ranking sees it coming.</h2>
+          </div>
+          <div>
+            <p class="lede">Most planning teams already track a <strong>Business impact</strong> KPI. It shows how much value flows through a part, but not whether that supply is about to fail.</p>
+            <span class="formula">Business impact = 12-month future supply of the component × average invoiced sales price per unit over the last 12 months</span>
+          </div>
+        </div>
+        <div class="proactive__grid">
+          <div class="reveal">
+            <table class="compare">
+              <caption class="micro" style="text-align:left;caption-side:bottom;padding-top:.6rem">Two complementary views of the same part.</caption>
+              <thead><tr><th scope="col"><span class="visually-hidden">Question</span></th><th scope="col">Business impact KPI</th><th scope="col">Resilience ranking</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">Answers</th><td>How much value flows through this part?</td><td>Which part is likely to fail, and can we bridge it?</td></tr>
+                <tr><th scope="row">Sees supply trouble?</th><td>No. Same value whether the supplier is healthy or struggling.</td><td>Yes. From slipping deliveries and external supplier-risk signals.</td></tr>
+                <tr><th scope="row">Timing</th><td>The loss shows once the disruption hits.</td><td>About 22 weeks of warning.</td></tr>
+                <tr><th scope="row">Use it to</th><td>Size the exposure and set priorities.</td><td>Act before the disruption.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="reveal">
+            <svg viewBox="0 0 520 410" role="img" aria-label="Illustrative example. Part X and Part Y have the same business impact of 2.4 million euros. Part X has two suppliers and 60 days of stock against 45 days to recover, so it ranks low and is covered. Part Y has one supplier, slipping deliveries and 10 days of stock against 300 days to recover, so it ranks in the top 1 percent and is exposed.">
+              <text class="lbl" x="0" y="14">Illustrative example · same business impact</text>
+              <g transform="translate(0,30)">
+                <rect class="panel-bg" x="0" y="0" width="520" height="164" rx="4"/>
+                <text class="t-mid" x="20" y="30" font-weight="600">Part X</text>
+                <text class="t-sm" x="20" y="48">Two suppliers · stock lasts 60 days, recovery takes 45</text>
+                <text class="lbl" x="20" y="78">Business impact</text>
+                <text class="t-mid" x="500" y="78" text-anchor="end">€2.4 M</text>
+                <rect class="bar-track" x="20" y="86" width="480" height="12" rx="2"/>
+                <rect class="ex-bar-bi" x="20" y="86" width="480" height="12" rx="2"/>
+                <text class="lbl" x="20" y="126">Resilience ranking</text>
+                <text class="t-mid" x="500" y="126" text-anchor="end">Low rank · covered</text>
+                <rect class="bar-track" x="20" y="134" width="480" height="12" rx="2"/>
+                <rect class="bar-ink" x="20" y="134" width="110" height="12" rx="2"/>
+              </g>
+              <g transform="translate(0,212)">
+                <rect class="panel-bg" x="0" y="0" width="520" height="164" rx="4"/>
+                <text class="t-mid" x="20" y="30" font-weight="600">Part Y</text>
+                <text class="t-sm" x="20" y="48">One supplier · deliveries slipping · 10 days of stock vs 300 to recover</text>
+                <text class="lbl" x="20" y="78">Business impact</text>
+                <text class="t-mid" x="500" y="78" text-anchor="end">€2.4 M</text>
+                <rect class="bar-track" x="20" y="86" width="480" height="12" rx="2"/>
+                <rect class="ex-bar-bi" x="20" y="86" width="480" height="12" rx="2"/>
+                <text class="lbl" x="20" y="126">Resilience ranking</text>
+                <text class="t-mid t-red" x="500" y="126" text-anchor="end">Top 1% · exposed</text>
+                <rect class="bar-track" x="20" y="134" width="480" height="12" rx="2"/>
+                <rect class="bar-ink" x="20" y="134" width="470" height="12" rx="2"/>
+              </g>
+              <text class="t-sm" x="0" y="402">Same value at stake. Only one needs action now.</text>
+            </svg>
+          </div>
+        </div>
+        <p class="takeaway reveal">Use both. The ranking tells you <em>which</em> loss is coming and <em>when</em>. Business impact tells you <em>how big</em> it is, and which top-ranked part to tackle first.</p>
+      </div>
+    </section>
+
+    <!-- 3 · Four checks on Part A (scroll scene) -->
+    <section class="section paper scene" id="checks" data-section="4" data-scene="checks">
+      <div class="section__inner scene__pin">
+        <div class="scene__copy">
+          <div class="reveal">
+            <p class="kicker">How it works · 4 checks per part</p>
+            <h2>Every part gets the same four questions.</h2>
+            <p>Here they are for one example part from the ranking.</p>
+            <div class="part-card" aria-label="Example part">
+              <span class="part-card__tag" aria-hidden="true">A</span>
+              <b>Part A: a purchased component</b>
+              <span>Rank 3 of 35,000 in today's ranking</span>
+            </div>
+          </div>
+          <ol class="scene__beats" aria-label="The four checks">
+            <li class="beat is-active" data-beat="0"><span><b>Reach:</b> how many finished products need it? About 150 finished products depend on Part A.</span></li>
+            <li class="beat" data-beat="1"><span><b>Supplier:</b> is there an alternative? One supplier delivers 100% of the volume.</span></li>
+            <li class="beat" data-beat="2"><span><b>Deliveries:</b> are receipts behaving normally? Delivery times swing by about ±70 days, well outside a healthy range. The model treats this as an early sign the supplier may be in trouble.</span></li>
+            <li class="beat" data-beat="3"><span><b>Survive vs. recover:</b> can stock last until supply is back? Time to survive is about 10 days; time to recover is about 300 days.</span></li>
+          </ol>
+        </div>
+        <div class="stage reveal">
+          <svg viewBox="0 0 720 530" role="img" aria-label="Four panels for Part A. Reach: about 150 finished products depend on it. Supplier: one supplier holds 100 percent of volume. Deliveries: lead times scatter far outside the healthy band around a roughly 200 day average. Survive versus recover: 10 days time to survive against 300 days time to recover, a gap of 290 days.">
+            <!-- Panel 1: Reach -->
+            <g data-step="0" transform="translate(0,0)">
+              <rect class="panel-bg" x="0" y="0" width="350" height="255" rx="4"/>
+              <text class="lbl" x="22" y="32">01 · Reach</text>
+              <text class="t-big" x="22" y="106">~150</text>
+              <text class="t-mid" x="22" y="134">finished products</text>
+              <text class="t-mid" x="22" y="152">depend on Part A</text>
+              <text class="t-sm" x="22" y="210">Each dot ≈ 5 products</text>
+              <text class="t-sm" x="22" y="228">Among the most widely used parts</text>
+              <circle class="dot" cx="214" cy="62" r="4"/>
+<circle class="dot" cx="214" cy="90" r="4"/>
+<circle class="dot" cx="214" cy="118" r="4"/>
+<circle class="dot" cx="214" cy="146" r="4"/>
+<circle class="dot" cx="214" cy="174" r="4"/>
+<circle class="dot" cx="236" cy="62" r="4"/>
+<circle class="dot" cx="236" cy="90" r="4"/>
+<circle class="dot" cx="236" cy="118" r="4"/>
+<circle class="dot" cx="236" cy="146" r="4"/>
+<circle class="dot" cx="236" cy="174" r="4"/>
+<circle class="dot" cx="258" cy="62" r="4"/>
+<circle class="dot" cx="258" cy="90" r="4"/>
+<circle class="dot" cx="258" cy="118" r="4"/>
+<circle class="dot" cx="258" cy="146" r="4"/>
+<circle class="dot" cx="258" cy="174" r="4"/>
+<circle class="dot" cx="280" cy="62" r="4"/>
+<circle class="dot" cx="280" cy="90" r="4"/>
+<circle class="dot" cx="280" cy="118" r="4"/>
+<circle class="dot" cx="280" cy="146" r="4"/>
+<circle class="dot" cx="280" cy="174" r="4"/>
+<circle class="dot" cx="302" cy="62" r="4"/>
+<circle class="dot" cx="302" cy="90" r="4"/>
+<circle class="dot" cx="302" cy="118" r="4"/>
+<circle class="dot" cx="302" cy="146" r="4"/>
+<circle class="dot" cx="302" cy="174" r="4"/>
+<circle class="dot" cx="324" cy="62" r="4"/>
+<circle class="dot" cx="324" cy="90" r="4"/>
+<circle class="dot" cx="324" cy="118" r="4"/>
+<circle class="dot" cx="324" cy="146" r="4"/>
+<circle class="dot" cx="324" cy="174" r="4"/>
+            </g>
+            <!-- Panel 2: Supplier -->
+            <g data-step="1" transform="translate(370,0)">
+              <rect class="panel-bg" x="0" y="0" width="350" height="255" rx="4"/>
+              <text class="lbl" x="22" y="32">02 · Supplier</text>
+              <text class="t-big" x="22" y="106">1 of 1</text>
+              <text class="t-mid" x="22" y="134">supplier delivers all volume</text>
+              <text class="t-sm" x="22" y="172">Share of purchase-order volume</text>
+              <rect class="bar-track" x="22" y="182" width="300" height="16" rx="2"/>
+              <rect class="bar-accent" x="22" y="182" width="300" height="16" rx="2"/>
+              <text class="t-sm" x="22" y="222">Supplier 1 · 100%</text>
+              <text class="t-sm" x="322" y="222" text-anchor="end">No second source</text>
+            </g>
+            <!-- Panel 3: Deliveries -->
+            <g data-step="2" transform="translate(0,275)">
+              <rect class="panel-bg" x="0" y="0" width="350" height="255" rx="4"/>
+              <text class="lbl" x="22" y="32">03 · Deliveries</text>
+              <rect class="band" x="24" y="118.8" width="306" height="21.0"/>
+              <line class="mean" x1="24" y1="129.3" x2="330" y2="129.3"/>
+              <path class="lt-line" d="M30.0 161.4 L42.6 119.4 L55.2 103.2 L67.8 142.8 L80.4 164.2 L93.0 131.0 L105.6 116.8 L118.2 100.5 L130.8 161.2 L143.4 163.2 L156.0 110.8 L168.6 116.9 L181.2 89.0 L193.8 103.5 L206.4 132.0 L219.0 136.5 L231.6 63.5 L244.2 136.9 L256.8 149.9 L269.4 159.2 L282.0 126.8 L294.6 125.5 L307.2 138.4 L319.8 130.9"/>
+              <circle class="ltdot" cx="30.0" cy="161.4" r="2.6"/>
+<circle class="ltdot" cx="42.6" cy="119.4" r="2.6"/>
+<circle class="ltdot" cx="55.2" cy="103.2" r="2.6"/>
+<circle class="ltdot" cx="67.8" cy="142.8" r="2.6"/>
+<circle class="ltdot" cx="80.4" cy="164.2" r="2.6"/>
+<circle class="ltdot" cx="93.0" cy="131.0" r="2.6"/>
+<circle class="ltdot" cx="105.6" cy="116.8" r="2.6"/>
+<circle class="ltdot" cx="118.2" cy="100.5" r="2.6"/>
+<circle class="ltdot" cx="130.8" cy="161.2" r="2.6"/>
+<circle class="ltdot" cx="143.4" cy="163.2" r="2.6"/>
+<circle class="ltdot" cx="156.0" cy="110.8" r="2.6"/>
+<circle class="ltdot" cx="168.6" cy="116.9" r="2.6"/>
+<circle class="ltdot" cx="181.2" cy="89.0" r="2.6"/>
+<circle class="ltdot" cx="193.8" cy="103.5" r="2.6"/>
+<circle class="ltdot" cx="206.4" cy="132.0" r="2.6"/>
+<circle class="ltdot" cx="219.0" cy="136.5" r="2.6"/>
+<circle class="ltdot" cx="231.6" cy="63.5" r="2.6"/>
+<circle class="ltdot" cx="244.2" cy="136.9" r="2.6"/>
+<circle class="ltdot" cx="256.8" cy="149.9" r="2.6"/>
+<circle class="ltdot" cx="269.4" cy="159.2" r="2.6"/>
+<circle class="ltdot" cx="282.0" cy="126.8" r="2.6"/>
+<circle class="ltdot" cx="294.6" cy="125.5" r="2.6"/>
+<circle class="ltdot" cx="307.2" cy="138.4" r="2.6"/>
+<circle class="ltdot" cx="319.8" cy="130.9" r="2.6"/>
+              <text class="t-sm" x="24" y="226">Last 24 receipts · delivery time in days</text>
+              <text class="t-sm" x="24" y="243">Shaded = healthy range (±15%) · ~200 day average</text>
+              <text class="t-sm" x="330" y="54" text-anchor="end">±70 days</text>
+            </g>
+            <!-- Panel 4: Stock vs recovery -->
+            <g data-step="3" transform="translate(370,275)">
+              <rect class="panel-bg" x="0" y="0" width="350" height="255" rx="4"/>
+              <text class="lbl" x="22" y="32">04 · Survive vs. recover</text>
+              <text class="t-sm" x="22" y="70">Time to survive · usable stock lasts</text>
+              <rect class="bar-track" x="22" y="78" width="300" height="16" rx="2"/>
+              <rect class="bar-ink" x="22" y="78" width="10" height="16" rx="1"/>
+              <text class="t-mid" x="39" y="91">10 days</text>
+              <text class="t-sm" x="22" y="128">Time to recover · until supply is back</text>
+              <rect class="bar-track" x="22" y="136" width="300" height="16" rx="2"/>
+              <rect class="bar-ink" x="22" y="136" width="300" height="16" rx="2"/>
+              <text class="t-mid t-inv" x="312" y="149" text-anchor="end">300 days</text>
+              <line class="gap-mark" x1="32" y1="172" x2="322" y2="172"/>
+              <line class="gap-mark" x1="32" y1="166" x2="32" y2="178"/>
+              <line class="gap-mark" x1="322" y1="166" x2="322" y2="178"/>
+              <text class="t-mid t-red" x="22" y="204">290 days uncovered</text>
+              <text class="t-sm" x="22" y="224">Recovery = delivery time plus extra time to find</text>
+              <text class="t-sm" x="22" y="240">and qualify a new source</text>
+            </g>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- 3b · Time to survive vs time to recover (scroll scene) -->
+    <section class="section dark scene scene--3" id="survive" data-section="5" data-scene="survive">
+      <div class="section__inner scene__pin">
+        <div class="scene__copy">
+          <div class="reveal">
+            <p class="kicker">The key test · Survive vs. recover</p>
+            <h2>Can the stock outlast the recovery?</h2>
+            <p>Two numbers decide whether a supply stop becomes a line stop. The model works them out for every part, every day.</p>
+          </div>
+          <ol class="scene__beats" aria-label="Time to survive versus time to recover for Part A">
+            <li class="beat is-active" data-beat="0"><span><b>Time to survive:</b> if Part A's supplier stopped today, usable stock above safety stock would last <b>10 days</b> at current daily consumption.</span></li>
+            <li class="beat" data-beat="1"><span><b>Time to recover:</b> about <b>300 days</b> until supply is back. That is ~200 days of normal delivery time, plus ~100 days because there is no second source to switch to. Parts that depend on other parts take longer still.</span></li>
+            <li class="beat" data-beat="2"><span><b>The gap:</b> <b>290 days</b> without stock. Part A cannot bridge its own recovery, which is why it ranks so high.</span></li>
+          </ol>
+          <div class="rule reveal">
+            <div><b>Covered</b>Time to survive ≥ time to recover. Stock bridges the outage.</div>
+            <div><b>Exposed</b>Time to survive &lt; time to recover. The gap is the number of days to bridge.</div>
+          </div>
+        </div>
+        <div class="stage reveal">
+          <svg viewBox="0 0 720 470" role="img" aria-label="Timeline for Part A after supply stops on day 0. Time to survive: usable stock runs out on day 10. Time to recover: supply returns around day 300, made of about 200 days normal delivery time plus about 100 days because there is no second source. The 290 days between are without stock.">
+            <line class="sv-axis" x1="40" y1="52" x2="40" y2="400"/>
+            <text class="sv-lbl" x="40" y="40">Supply stops · day 0</text>
+            <g data-step="0">
+              <text class="sv-lbl" x="48" y="76">Time to survive</text>
+              <rect class="sv-bar" x="40" y="84" width="19.50" height="22" rx="1"/>
+              <text class="sv-txt" x="69.5" y="100">10 days · usable stock runs out</text>
+              <text class="sv-sub" x="48" y="128">Usable stock above safety stock ÷ daily consumption</text>
+              <line class="sv-dash" x1="59.50" y1="106" x2="59.50" y2="400"/>
+            </g>
+            <g data-step="1">
+              <text class="sv-lbl" x="48" y="176">Time to recover</text>
+              <rect class="sv-bar" x="40" y="184" width="390.00" height="22" rx="1"/>
+              <rect class="sv-bar--soft" x="430.00" y="184" width="195.00" height="22" rx="1"/>
+              <text class="sv-txt" x="633.0" y="200">300 days</text>
+              <text class="sv-sub" x="48" y="228">Normal delivery time ≈ 200 days</text>
+              <text class="sv-sub" x="436.0" y="228">+ ≈ 100 days: no second source</text>
+              <line class="sv-dash" x1="625.00" y1="206" x2="625.00" y2="400"/>
+              <text class="sv-sub" x="625.0" y="250" text-anchor="middle">supply back</text>
+            </g>
+            <g data-step="2">
+              <rect class="sv-gap" x="59.50" y="276" width="565.50" height="92"/>
+              <line class="sv-gap-line" x1="59.50" y1="286" x2="625.00" y2="286"/>
+              <line class="sv-gap-line" x1="59.50" y1="280" x2="59.50" y2="292"/>
+              <line class="sv-gap-line" x1="625.00" y1="280" x2="625.00" y2="292"/>
+              <text class="sv-gap-txt" x="342.2" y="328" text-anchor="middle">290 days without stock</text>
+              <text class="sv-sub" x="342.2" y="350" text-anchor="middle">Production at risk unless the gap is bridged</text>
+            </g>
+            <line class="sv-axis" x1="40" y1="400" x2="680" y2="400"/>
+            <g class="sv-tick">
+              <text x="40.0" y="420" text-anchor="middle">0</text>
+              <text x="235.0" y="420" text-anchor="middle">100</text>
+              <text x="430.0" y="420" text-anchor="middle">200</text>
+              <text x="625.0" y="420" text-anchor="middle">300</text>
+            </g>
+            <text class="sv-lbl" x="680" y="450" text-anchor="end">Days after supply stops →</text>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 · Likelihood × impact (scroll scene) -->
+    <section class="section white scene" id="matrix" data-section="6" data-scene="matrix">
+      <div class="section__inner scene__pin">
+        <div class="scene__copy">
+          <div class="reveal">
+            <p class="kicker">How it ranks · Likelihood × impact</p>
+            <h2>A part rises to the top only when both are high.</h2>
+            <p>The four checks combine into two questions: <em>How likely is a supply problem?</em> and <em>How much would it hurt?</em></p>
+          </div>
+          <ol class="scene__beats" aria-label="How the ranking reads">
+            <li class="beat is-active" data-beat="0"><span>Each dot is a part. Most sit in the lower left: low likelihood, low impact.</span></li>
+            <li class="beat" data-beat="1"><span><b>Risky supplier, minor part:</b> worth watching, but losing it wouldn't stop the lines, so it ranks lower.</span></li>
+            <li class="beat" data-beat="2"><span><b>Critical part, healthy supply:</b> important, but nothing suggests trouble right now, so it also ranks lower.</span></li>
+            <li class="beat" data-beat="3"><span><b>Part A:</b> high on both. The dashed lines are score levels; the further up and right, the higher the rank.</span></li>
+          </ol>
+          <div class="legend-list reveal">
+            <div><h3>Likelihood comes from</h3><ul><li>Delivery behaviour</li><li>External supplier signals</li></ul></div>
+            <div><h3>Impact comes from</h3><ul><li>Reach into products</li><li>Single sourcing</li><li>Survive vs. recover gap</li></ul></div>
+          </div>
+        </div>
+        <div class="stage reveal">
+          <svg viewBox="0 0 640 540" role="img" aria-label="Scatter of parts by impact on the horizontal axis and likelihood on the vertical axis. Upper-left: risky supplier on a minor part. Lower-right: critical part with healthy supply. Both rank lower. Part A sits in the upper-right corner, where the score is highest.">
+            <line class="grid-line" x1="340" y1="40" x2="340" y2="480"/>
+            <line class="grid-line" x1="80" y1="260" x2="600" y2="260"/>
+            <g data-step="1">
+              <rect class="quad" x="80" y="40" width="260" height="220"/>
+              <rect class="q-hl" x="80" y="40" width="260" height="220"/>
+              <text class="t-mid" x="96" y="66">Risky supplier, minor part</text>
+              <text class="t-sm" x="96" y="84">Watch, lower rank</text>
+            </g>
+            <g data-step="2">
+              <rect class="quad" x="340" y="260" width="260" height="220"/>
+              <rect class="q-hl" x="340" y="260" width="260" height="220"/>
+              <text class="t-mid" x="584" y="452" text-anchor="end">Critical part, healthy supply</text>
+              <text class="t-sm" x="584" y="470" text-anchor="end">Important, lower rank</text>
+            </g>
+            <g data-step="0"><circle class="mdot" cx="157" cy="197" r="4"/>
+<circle class="mdot" cx="125" cy="272" r="4"/>
+<circle class="mdot" cx="262" cy="414" r="4"/>
+<circle class="mdot" cx="126" cy="194" r="4"/>
+<circle class="mdot" cx="344" cy="400" r="4"/>
+<circle class="mdot" cx="151" cy="246" r="4"/>
+<circle class="mdot" cx="232" cy="288" r="4"/>
+<circle class="mdot" cx="186" cy="218" r="4"/>
+<circle class="mdot" cx="311" cy="456" r="4"/>
+<circle class="mdot" cx="129" cy="260" r="4"/>
+<circle class="mdot" cx="183" cy="379" r="4"/>
+<circle class="mdot" cx="167" cy="94" r="4"/>
+<circle class="mdot" cx="187" cy="273" r="4"/>
+<circle class="mdot" cx="162" cy="340" r="4"/>
+<circle class="mdot" cx="331" cy="425" r="4"/>
+<circle class="mdot" cx="341" cy="214" r="4"/>
+<circle class="mdot" cx="232" cy="400" r="4"/>
+<circle class="mdot" cx="217" cy="298" r="4"/>
+<circle class="mdot" cx="276" cy="166" r="4"/>
+<circle class="mdot" cx="99" cy="368" r="4"/>
+<circle class="mdot" cx="199" cy="179" r="4"/>
+<circle class="mdot" cx="419" cy="370" r="4"/>
+<circle class="mdot" cx="97" cy="418" r="4"/>
+<circle class="mdot" cx="252" cy="367" r="4"/>
+<circle class="mdot" cx="229" cy="390" r="4"/>
+<circle class="mdot" cx="204" cy="323" r="4"/>
+<circle class="mdot" cx="85" cy="229" r="4"/>
+<circle class="mdot" cx="365" cy="433" r="4"/>
+<circle class="mdot" cx="230" cy="328" r="4"/>
+<circle class="mdot" cx="188" cy="227" r="4"/>
+<circle class="mdot" cx="152" cy="162" r="4"/>
+<circle class="mdot" cx="196" cy="401" r="4"/>
+<circle class="mdot" cx="130" cy="423" r="4"/>
+<circle class="mdot" cx="87" cy="465" r="4"/>
+<circle class="mdot" cx="198" cy="390" r="4"/>
+<circle class="mdot" cx="123" cy="161" r="4"/>
+<circle class="mdot" cx="412" cy="451" r="4"/>
+<circle class="mdot" cx="301" cy="232" r="4"/>
+<circle class="mdot" cx="108" cy="312" r="4"/>
+<circle class="mdot" cx="407" cy="322" r="4"/>
+<circle class="mdot" cx="340" cy="253" r="4"/>
+<circle class="mdot" cx="120" cy="466" r="4"/>
+<circle class="mdot" cx="195" cy="403" r="4"/>
+<circle class="mdot" cx="179" cy="479" r="4"/>
+<circle class="mdot" cx="220" cy="402" r="4"/>
+<circle class="mdot" cx="285" cy="402" r="4"/>
+<circle class="mdot" cx="87" cy="176" r="4"/>
+<circle class="mdot" cx="175" cy="348" r="4"/>
+<circle class="mdot" cx="178" cy="345" r="4"/>
+<circle class="mdot" cx="173" cy="366" r="4"/>
+<circle class="mdot" cx="98" cy="257" r="4"/>
+<circle class="mdot" cx="176" cy="210" r="4"/>
+<circle class="mdot" cx="317" cy="461" r="4"/>
+<circle class="mdot" cx="295" cy="164" r="4"/>
+<circle class="mdot" cx="389" cy="375" r="4"/>
+<circle class="mdot" cx="105" cy="408" r="4"/>
+<circle class="mdot" cx="83" cy="416" r="4"/>
+<circle class="mdot" cx="82" cy="339" r="4"/>
+<circle class="mdot" cx="131" cy="406" r="4"/>
+<circle class="mdot" cx="133" cy="345" r="4"/>
+<circle class="mdot" cx="388" cy="310" r="4"/>
+<circle class="mdot" cx="278" cy="390" r="4"/>
+<circle class="mdot" cx="148" cy="290" r="4"/>
+<circle class="mdot" cx="228" cy="365" r="4"/>
+<circle class="mdot" cx="224" cy="455" r="4"/>
+<circle class="mdot" cx="174" cy="461" r="4"/>
+<circle class="mdot" cx="483" cy="359" r="4"/>
+<circle class="mdot" cx="383" cy="424" r="4"/>
+<circle class="mdot" cx="114" cy="312" r="4"/>
+<circle class="mdot" cx="214" cy="326" r="4"/>
+<circle class="mdot" cx="158" cy="137" r="4"/>
+<circle class="mdot" cx="194" cy="102" r="4"/>
+<circle class="mdot" cx="142" cy="181" r="4"/>
+<circle class="mdot" cx="236" cy="163" r="4"/>
+<circle class="mdot" cx="506" cy="401" r="4"/>
+<circle class="mdot" cx="548" cy="427" r="4"/>
+<circle class="mdot" cx="465" cy="370" r="4"/>
+<circle class="mdot" cx="527" cy="348" r="4"/>
+<circle class="mdot" cx="402" cy="190" r="4"/></g>
+            <g data-step="3">
+              <path class="contour" d="M210.0 40.0 L219.8 70.7 L229.5 97.4 L239.2 120.8 L249.0 141.5 L258.8 160.0 L268.5 176.6 L278.2 191.5 L288.0 205.0 L297.8 217.3 L307.5 228.6 L317.2 238.9 L327.0 248.4 L336.8 257.2 L346.5 265.4 L356.2 272.9 L366.0 280.0 L375.8 286.6 L385.5 292.8 L395.2 298.6 L405.0 304.0 L414.8 309.1 L424.5 314.0 L434.2 318.5 L444.0 322.9 L453.8 327.0 L463.5 330.8 L473.2 334.5 L483.0 338.1 L492.8 341.4 L502.5 344.6 L512.2 347.7 L522.0 350.6 L531.8 353.4 L541.5 356.1 L551.2 358.6 L561.0 361.1 L570.8 363.4 L580.5 365.7 L590.2 367.9 L600.0 370.0"/>
+              <path class="contour" d="M372.5 40.0 L378.2 48.4 L383.9 56.5 L389.6 64.3 L395.2 71.8 L400.9 79.0 L406.6 86.0 L412.3 92.7 L418.0 99.2 L423.7 105.5 L429.4 111.6 L435.1 117.5 L440.8 123.2 L446.4 128.8 L452.1 134.1 L457.8 139.4 L463.5 144.4 L469.2 149.3 L474.9 154.1 L480.6 158.7 L486.2 163.2 L491.9 167.6 L497.6 171.8 L503.3 176.0 L509.0 180.0 L514.7 183.9 L520.4 187.7 L526.1 191.5 L531.8 195.1 L537.4 198.7 L543.1 202.1 L548.8 205.5 L554.5 208.8 L560.2 212.0 L565.9 215.1 L571.6 218.2 L577.2 221.2 L582.9 224.1 L588.6 227.0 L594.3 229.8 L600.0 232.5"/>
+              <text class="t-sm" x="596" y="364" text-anchor="end">mid score</text>
+              <text class="t-sm" x="596" y="226" text-anchor="end">high score</text>
+              <circle class="parta-ring" cx="548" cy="128" r="16"/>
+              <circle class="parta" cx="548" cy="128" r="7"/>
+              <text class="t-mid" x="526" y="110" text-anchor="end" font-weight="600">Part A</text>
+              <text class="t-sm" x="526" y="126" text-anchor="end">Rank 3</text>
+            </g>
+            <line class="axis" x1="80" y1="480" x2="604" y2="480"/>
+            <line class="axis" x1="80" y1="36" x2="80" y2="480"/>
+            <text class="lbl" x="600" y="506" text-anchor="end">Impact →</text>
+            <text class="t-sm" x="80" y="506">Low</text>
+            <text class="t-sm" x="600" y="524" text-anchor="end">High</text>
+            <text class="lbl" x="0" y="0" transform="translate(56 44) rotate(-90)" text-anchor="end">Likelihood →</text>
+            <text class="t-sm" x="0" y="0" transform="translate(56 480) rotate(-90)">Low</text>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5 · External signals -->
+    <section class="section paper frame-fit" id="signals" data-section="7">
+      <div class="section__inner frame-fit__inner signals__grid">
+        <div class="reveal">
+          <p class="kicker">Outside-in · External risk signals</p>
+          <h2>An outside view of every supplier.</h2>
+          <p class="lede">The company's own receipts show what has already happened. External supplier-risk data adds what is happening at the supplier: an overall operational and ESG risk score, and a financial-health and insolvency rating. A supplier only counts as low risk if <strong>both</strong> say so.</p>
+          <p class="lede">This sets each part's starting likelihood, between 5% and 40%. Delivery history then moves it up or down, receipt by receipt.</p>
+          <div class="stats">
+            <div class="stat"><span class="stat__num">Most</span><span class="stat__label">BOM suppliers matched to the external risk data</span></div>
+            <div class="stat"><span class="stat__num">Thousands</span><span class="stat__label">parts with a signal-based starting likelihood</span></div>
+          </div>
+        </div>
+        <div class="reveal">
+          <svg viewBox="0 0 560 420" role="img" aria-label="Two external signals, an overall supplier-risk score and a financial-health rating, combine into a supplier's starting likelihood. The company's delivery history then updates it into the likelihood used in the ranking. For Part A the starting likelihood is 15 percent against a portfolio average of 11 percent.">
+            <rect class="flow-box" x="0" y="30" width="220" height="86" rx="4"/>
+            <text class="lbl" x="18" y="58">Supplier risk radar</text>
+            <text class="t-mid" x="18" y="82">Overall supplier risk</text>
+            <text class="t-sm" x="18" y="100">operations · ESG · events</text>
+            <rect class="flow-box" x="0" y="146" width="220" height="86" rx="4"/>
+            <text class="lbl" x="18" y="174">Credit rating</text>
+            <text class="t-mid" x="18" y="198">Financial health</text>
+            <text class="t-sm" x="18" y="216">insolvency probability</text>
+            <path class="flow-line" d="M220 73 C270 73 270 131 300 131"/>
+            <path class="flow-line" d="M220 189 C270 189 270 131 300 131"/>
+            <rect class="flow-box" x="300" y="88" width="250" height="86" rx="4"/>
+            <text class="lbl" x="318" y="116">Starting likelihood</text>
+            <text class="t-mid" x="318" y="140">Low only if both agree</text>
+            <text class="t-sm" x="318" y="158">weighted by each supplier's PO share</text>
+            <path class="flow-line" d="M425 174 V232"/>
+            <rect class="flow-box" x="300" y="232" width="250" height="70" rx="4"/>
+            <text class="lbl" x="318" y="260">+ Own delivery history</text>
+            <text class="t-sm" x="318" y="282">each receipt updates the estimate</text>
+            <path class="flow-line" d="M425 302 V330"/>
+            <rect class="flow-box flow-box--out" x="300" y="330" width="250" height="70" rx="4"/>
+            <text class="lbl t-inv" x="318" y="358" style="fill:#fff;opacity:.7">Likelihood in the ranking</text>
+            <text class="t-mid t-inv" x="318" y="382">Part A start: 15% vs 11% avg.</text>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6 · Proof (scroll scene) -->
+    <section class="section dark scene scene--3" id="proof" data-section="8" data-scene="proof">
+      <div class="section__inner scene__pin">
+        <div class="scene__copy">
+          <div class="reveal">
+            <p class="kicker">Why you can trust it · Backtest</p>
+            <h2>We tested it against 900 real disruptions.</h2>
+            <p>We turned the clock back before each past disruption and ran the model using only the data available at that moment. Then we checked whether the affected part was near the top of the list.</p>
+          </div>
+          <ol class="scene__beats" aria-label="Backtest results">
+            <li class="beat is-active" data-beat="0"><span><b>900 disruptions</b> on 800 BOM parts, detected from late deliveries in the company's own receipts.</span></li>
+            <li class="beat" data-beat="1"><span><b>The top 20% of the list caught 540 (60%).</b> Picking 20% of parts at random would catch about 20%, so the list is about <b>3× better than chance</b>.</span></li>
+            <li class="beat" data-beat="2"><span><b>On the most recent events, which the model never learned from, it caught 70%.</b> It works on cases it hasn't seen.</span></li>
+          </ol>
+        </div>
+        <div class="stage reveal">
+          <svg viewBox="0 0 620 560" role="img" aria-label="900 dots, one per past disruption. 540 are filled: caught in the top 20 percent of the list. Bars compare: model top 20 percent caught 60 percent; random selection about 20 percent; recent unseen events 70 percent.">
+            <text class="lbl" x="26" y="20">One dot = one past disruption</text>
+            <g data-step="0" class="waffle-base"><circle cx="30.0" cy="40.0" r="4.3"/><circle cx="43.6" cy="40.0" r="4.3"/><circle cx="57.2" cy="40.0" r="4.3"/><circle cx="70.8" cy="40.0" r="4.3"/><circle cx="84.4" cy="40.0" r="4.3"/><circle cx="98.0" cy="40.0" r="4.3"/><circle cx="111.6" cy="40.0" r="4.3"/><circle cx="125.2" cy="40.0" r="4.3"/><circle cx="138.8" cy="40.0" r="4.3"/><circle cx="152.4" cy="40.0" r="4.3"/><circle cx="166.0" cy="40.0" r="4.3"/><circle cx="179.6" cy="40.0" r="4.3"/><circle cx="193.2" cy="40.0" r="4.3"/><circle cx="206.8" cy="40.0" r="4.3"/><circle cx="220.4" cy="40.0" r="4.3"/><circle cx="234.0" cy="40.0" r="4.3"/><circle cx="247.6" cy="40.0" r="4.3"/><circle cx="261.2" cy="40.0" r="4.3"/><circle cx="274.8" cy="40.0" r="4.3"/><circle cx="288.4" cy="40.0" r="4.3"/><circle cx="302.0" cy="40.0" r="4.3"/><circle cx="315.6" cy="40.0" r="4.3"/><circle cx="329.2" cy="40.0" r="4.3"/><circle cx="342.8" cy="40.0" r="4.3"/><circle cx="356.4" cy="40.0" r="4.3"/><circle cx="370.0" cy="40.0" r="4.3"/><circle cx="383.6" cy="40.0" r="4.3"/><circle cx="397.2" cy="40.0" r="4.3"/><circle cx="410.8" cy="40.0" r="4.3"/><circle cx="424.4" cy="40.0" r="4.3"/><circle cx="438.0" cy="40.0" r="4.3"/><circle cx="451.6" cy="40.0" r="4.3"/><circle cx="465.2" cy="40.0" r="4.3"/><circle cx="478.8" cy="40.0" r="4.3"/><circle cx="492.4" cy="40.0" r="4.3"/><circle cx="506.0" cy="40.0" r="4.3"/><circle cx="519.6" cy="40.0" r="4.3"/><circle cx="533.2" cy="40.0" r="4.3"/><circle cx="546.8" cy="40.0" r="4.3"/><circle cx="560.4" cy="40.0" r="4.3"/><circle cx="574.0" cy="40.0" r="4.3"/><circle cx="30.0" cy="53.6" r="4.3"/><circle cx="43.6" cy="53.6" r="4.3"/><circle cx="57.2" cy="53.6" r="4.3"/><circle cx="70.8" cy="53.6" r="4.3"/><circle cx="84.4" cy="53.6" r="4.3"/><circle cx="98.0" cy="53.6" r="4.3"/><circle cx="111.6" cy="53.6" r="4.3"/><circle cx="125.2" cy="53.6" r="4.3"/><circle cx="138.8" cy="53.6" r="4.3"/><circle cx="152.4" cy="53.6" r="4.3"/><circle cx="166.0" cy="53.6" r="4.3"/><circle cx="179.6" cy="53.6" r="4.3"/><circle cx="193.2" cy="53.6" r="4.3"/><circle cx="206.8" cy="53.6" r="4.3"/><circle cx="220.4" cy="53.6" r="4.3"/><circle cx="234.0" cy="53.6" r="4.3"/><circle cx="247.6" cy="53.6" r="4.3"/><circle cx="261.2" cy="53.6" r="4.3"/><circle cx="274.8" cy="53.6" r="4.3"/><circle cx="288.4" cy="53.6" r="4.3"/><circle cx="302.0" cy="53.6" r="4.3"/><circle cx="315.6" cy="53.6" r="4.3"/><circle cx="329.2" cy="53.6" r="4.3"/><circle cx="342.8" cy="53.6" r="4.3"/><circle cx="356.4" cy="53.6" r="4.3"/><circle cx="370.0" cy="53.6" r="4.3"/><circle cx="383.6" cy="53.6" r="4.3"/><circle cx="397.2" cy="53.6" r="4.3"/><circle cx="410.8" cy="53.6" r="4.3"/><circle cx="424.4" cy="53.6" r="4.3"/><circle cx="438.0" cy="53.6" r="4.3"/><circle cx="451.6" cy="53.6" r="4.3"/><circle cx="465.2" cy="53.6" r="4.3"/><circle cx="478.8" cy="53.6" r="4.3"/><circle cx="492.4" cy="53.6" r="4.3"/><circle cx="506.0" cy="53.6" r="4.3"/><circle cx="519.6" cy="53.6" r="4.3"/><circle cx="533.2" cy="53.6" r="4.3"/><circle cx="546.8" cy="53.6" r="4.3"/><circle cx="560.4" cy="53.6" r="4.3"/><circle cx="574.0" cy="53.6" r="4.3"/><circle cx="30.0" cy="67.2" r="4.3"/><circle cx="43.6" cy="67.2" r="4.3"/><circle cx="57.2" cy="67.2" r="4.3"/><circle cx="70.8" cy="67.2" r="4.3"/><circle cx="84.4" cy="67.2" r="4.3"/><circle cx="98.0" cy="67.2" r="4.3"/><circle cx="111.6" cy="67.2" r="4.3"/><circle cx="125.2" cy="67.2" r="4.3"/><circle cx="138.8" cy="67.2" r="4.3"/><circle cx="152.4" cy="67.2" r="4.3"/><circle cx="166.0" cy="67.2" r="4.3"/><circle cx="179.6" cy="67.2" r="4.3"/><circle cx="193.2" cy="67.2" r="4.3"/><circle cx="206.8" cy="67.2" r="4.3"/><circle cx="220.4" cy="67.2" r="4.3"/><circle cx="234.0" cy="67.2" r="4.3"/><circle cx="247.6" cy="67.2" r="4.3"/><circle cx="261.2" cy="67.2" r="4.3"/><circle cx="274.8" cy="67.2" r="4.3"/><circle cx="288.4" cy="67.2" r="4.3"/><circle cx="302.0" cy="67.2" r="4.3"/><circle cx="315.6" cy="67.2" r="4.3"/><circle cx="329.2" cy="67.2" r="4.3"/><circle cx="342.8" cy="67.2" r="4.3"/><circle cx="356.4" cy="67.2" r="4.3"/><circle cx="370.0" cy="67.2" r="4.3"/><circle cx="383.6" cy="67.2" r="4.3"/><circle cx="397.2" cy="67.2" r="4.3"/><circle cx="410.8" cy="67.2" r="4.3"/><circle cx="424.4" cy="67.2" r="4.3"/><circle cx="438.0" cy="67.2" r="4.3"/><circle cx="451.6" cy="67.2" r="4.3"/><circle cx="465.2" cy="67.2" r="4.3"/><circle cx="478.8" cy="67.2" r="4.3"/><circle cx="492.4" cy="67.2" r="4.3"/><circle cx="506.0" cy="67.2" r="4.3"/><circle cx="519.6" cy="67.2" r="4.3"/><circle cx="533.2" cy="67.2" r="4.3"/><circle cx="546.8" cy="67.2" r="4.3"/><circle cx="560.4" cy="67.2" r="4.3"/><circle cx="574.0" cy="67.2" r="4.3"/><circle cx="30.0" cy="80.8" r="4.3"/><circle cx="43.6" cy="80.8" r="4.3"/><circle cx="57.2" cy="80.8" r="4.3"/><circle cx="70.8" cy="80.8" r="4.3"/><circle cx="84.4" cy="80.8" r="4.3"/><circle cx="98.0" cy="80.8" r="4.3"/><circle cx="111.6" cy="80.8" r="4.3"/><circle cx="125.2" cy="80.8" r="4.3"/><circle cx="138.8" cy="80.8" r="4.3"/><circle cx="152.4" cy="80.8" r="4.3"/><circle cx="166.0" cy="80.8" r="4.3"/><circle cx="179.6" cy="80.8" r="4.3"/><circle cx="193.2" cy="80.8" r="4.3"/><circle cx="206.8" cy="80.8" r="4.3"/><circle cx="220.4" cy="80.8" r="4.3"/><circle cx="234.0" cy="80.8" r="4.3"/><circle cx="247.6" cy="80.8" r="4.3"/><circle cx="261.2" cy="80.8" r="4.3"/><circle cx="274.8" cy="80.8" r="4.3"/><circle cx="288.4" cy="80.8" r="4.3"/><circle cx="302.0" cy="80.8" r="4.3"/><circle cx="315.6" cy="80.8" r="4.3"/><circle cx="329.2" cy="80.8" r="4.3"/><circle cx="342.8" cy="80.8" r="4.3"/><circle cx="356.4" cy="80.8" r="4.3"/><circle cx="370.0" cy="80.8" r="4.3"/><circle cx="383.6" cy="80.8" r="4.3"/><circle cx="397.2" cy="80.8" r="4.3"/><circle cx="410.8" cy="80.8" r="4.3"/><circle cx="424.4" cy="80.8" r="4.3"/><circle cx="438.0" cy="80.8" r="4.3"/><circle cx="451.6" cy="80.8" r="4.3"/><circle cx="465.2" cy="80.8" r="4.3"/><circle cx="478.8" cy="80.8" r="4.3"/><circle cx="492.4" cy="80.8" r="4.3"/><circle cx="506.0" cy="80.8" r="4.3"/><circle cx="519.6" cy="80.8" r="4.3"/><circle cx="533.2" cy="80.8" r="4.3"/><circle cx="546.8" cy="80.8" r="4.3"/><circle cx="560.4" cy="80.8" r="4.3"/><circle cx="574.0" cy="80.8" r="4.3"/><circle cx="30.0" cy="94.4" r="4.3"/><circle cx="43.6" cy="94.4" r="4.3"/><circle cx="57.2" cy="94.4" r="4.3"/><circle cx="70.8" cy="94.4" r="4.3"/><circle cx="84.4" cy="94.4" r="4.3"/><circle cx="98.0" cy="94.4" r="4.3"/><circle cx="111.6" cy="94.4" r="4.3"/><circle cx="125.2" cy="94.4" r="4.3"/><circle cx="138.8" cy="94.4" r="4.3"/><circle cx="152.4" cy="94.4" r="4.3"/><circle cx="166.0" cy="94.4" r="4.3"/><circle cx="179.6" cy="94.4" r="4.3"/><circle cx="193.2" cy="94.4" r="4.3"/><circle cx="206.8" cy="94.4" r="4.3"/><circle cx="220.4" cy="94.4" r="4.3"/><circle cx="234.0" cy="94.4" r="4.3"/><circle cx="247.6" cy="94.4" r="4.3"/><circle cx="261.2" cy="94.4" r="4.3"/><circle cx="274.8" cy="94.4" r="4.3"/><circle cx="288.4" cy="94.4" r="4.3"/><circle cx="302.0" cy="94.4" r="4.3"/><circle cx="315.6" cy="94.4" r="4.3"/><circle cx="329.2" cy="94.4" r="4.3"/><circle cx="342.8" cy="94.4" r="4.3"/><circle cx="356.4" cy="94.4" r="4.3"/><circle cx="370.0" cy="94.4" r="4.3"/><circle cx="383.6" cy="94.4" r="4.3"/><circle cx="397.2" cy="94.4" r="4.3"/><circle cx="410.8" cy="94.4" r="4.3"/><circle cx="424.4" cy="94.4" r="4.3"/><circle cx="438.0" cy="94.4" r="4.3"/><circle cx="451.6" cy="94.4" r="4.3"/><circle cx="465.2" cy="94.4" r="4.3"/><circle cx="478.8" cy="94.4" r="4.3"/><circle cx="492.4" cy="94.4" r="4.3"/><circle cx="506.0" cy="94.4" r="4.3"/><circle cx="519.6" cy="94.4" r="4.3"/><circle cx="533.2" cy="94.4" r="4.3"/><circle cx="546.8" cy="94.4" r="4.3"/><circle cx="560.4" cy="94.4" r="4.3"/><circle cx="574.0" cy="94.4" r="4.3"/><circle cx="30.0" cy="108.0" r="4.3"/><circle cx="43.6" cy="108.0" r="4.3"/><circle cx="57.2" cy="108.0" r="4.3"/><circle cx="70.8" cy="108.0" r="4.3"/><circle cx="84.4" cy="108.0" r="4.3"/><circle cx="98.0" cy="108.0" r="4.3"/><circle cx="111.6" cy="108.0" r="4.3"/><circle cx="125.2" cy="108.0" r="4.3"/><circle cx="138.8" cy="108.0" r="4.3"/><circle cx="152.4" cy="108.0" r="4.3"/><circle cx="166.0" cy="108.0" r="4.3"/><circle cx="179.6" cy="108.0" r="4.3"/><circle cx="193.2" cy="108.0" r="4.3"/><circle cx="206.8" cy="108.0" r="4.3"/><circle cx="220.4" cy="108.0" r="4.3"/><circle cx="234.0" cy="108.0" r="4.3"/><circle cx="247.6" cy="108.0" r="4.3"/><circle cx="261.2" cy="108.0" r="4.3"/><circle cx="274.8" cy="108.0" r="4.3"/><circle cx="288.4" cy="108.0" r="4.3"/><circle cx="302.0" cy="108.0" r="4.3"/><circle cx="315.6" cy="108.0" r="4.3"/><circle cx="329.2" cy="108.0" r="4.3"/><circle cx="342.8" cy="108.0" r="4.3"/><circle cx="356.4" cy="108.0" r="4.3"/><circle cx="370.0" cy="108.0" r="4.3"/><circle cx="383.6" cy="108.0" r="4.3"/><circle cx="397.2" cy="108.0" r="4.3"/><circle cx="410.8" cy="108.0" r="4.3"/><circle cx="424.4" cy="108.0" r="4.3"/><circle cx="438.0" cy="108.0" r="4.3"/><circle cx="451.6" cy="108.0" r="4.3"/><circle cx="465.2" cy="108.0" r="4.3"/><circle cx="478.8" cy="108.0" r="4.3"/><circle cx="492.4" cy="108.0" r="4.3"/><circle cx="506.0" cy="108.0" r="4.3"/><circle cx="519.6" cy="108.0" r="4.3"/><circle cx="533.2" cy="108.0" r="4.3"/><circle cx="546.8" cy="108.0" r="4.3"/><circle cx="560.4" cy="108.0" r="4.3"/><circle cx="574.0" cy="108.0" r="4.3"/><circle cx="30.0" cy="121.6" r="4.3"/><circle cx="43.6" cy="121.6" r="4.3"/><circle cx="57.2" cy="121.6" r="4.3"/><circle cx="70.8" cy="121.6" r="4.3"/><circle cx="84.4" cy="121.6" r="4.3"/><circle cx="98.0" cy="121.6" r="4.3"/><circle cx="111.6" cy="121.6" r="4.3"/><circle cx="125.2" cy="121.6" r="4.3"/><circle cx="138.8" cy="121.6" r="4.3"/><circle cx="152.4" cy="121.6" r="4.3"/><circle cx="166.0" cy="121.6" r="4.3"/><circle cx="179.6" cy="121.6" r="4.3"/><circle cx="193.2" cy="121.6" r="4.3"/><circle cx="206.8" cy="121.6" r="4.3"/><circle cx="220.4" cy="121.6" r="4.3"/><circle cx="234.0" cy="121.6" r="4.3"/><circle cx="247.6" cy="121.6" r="4.3"/><circle cx="261.2" cy="121.6" r="4.3"/><circle cx="274.8" cy="121.6" r="4.3"/><circle cx="288.4" cy="121.6" r="4.3"/><circle cx="302.0" cy="121.6" r="4.3"/><circle cx="315.6" cy="121.6" r="4.3"/><circle cx="329.2" cy="121.6" r="4.3"/><circle cx="342.8" cy="121.6" r="4.3"/><circle cx="356.4" cy="121.6" r="4.3"/><circle cx="370.0" cy="121.6" r="4.3"/><circle cx="383.6" cy="121.6" r="4.3"/><circle cx="397.2" cy="121.6" r="4.3"/><circle cx="410.8" cy="121.6" r="4.3"/><circle cx="424.4" cy="121.6" r="4.3"/><circle cx="438.0" cy="121.6" r="4.3"/><circle cx="451.6" cy="121.6" r="4.3"/><circle cx="465.2" cy="121.6" r="4.3"/><circle cx="478.8" cy="121.6" r="4.3"/><circle cx="492.4" cy="121.6" r="4.3"/><circle cx="506.0" cy="121.6" r="4.3"/><circle cx="519.6" cy="121.6" r="4.3"/><circle cx="533.2" cy="121.6" r="4.3"/><circle cx="546.8" cy="121.6" r="4.3"/><circle cx="560.4" cy="121.6" r="4.3"/><circle cx="574.0" cy="121.6" r="4.3"/><circle cx="30.0" cy="135.2" r="4.3"/><circle cx="43.6" cy="135.2" r="4.3"/><circle cx="57.2" cy="135.2" r="4.3"/><circle cx="70.8" cy="135.2" r="4.3"/><circle cx="84.4" cy="135.2" r="4.3"/><circle cx="98.0" cy="135.2" r="4.3"/><circle cx="111.6" cy="135.2" r="4.3"/><circle cx="125.2" cy="135.2" r="4.3"/><circle cx="138.8" cy="135.2" r="4.3"/><circle cx="152.4" cy="135.2" r="4.3"/><circle cx="166.0" cy="135.2" r="4.3"/><circle cx="179.6" cy="135.2" r="4.3"/><circle cx="193.2" cy="135.2" r="4.3"/><circle cx="206.8" cy="135.2" r="4.3"/><circle cx="220.4" cy="135.2" r="4.3"/><circle cx="234.0" cy="135.2" r="4.3"/><circle cx="247.6" cy="135.2" r="4.3"/><circle cx="261.2" cy="135.2" r="4.3"/><circle cx="274.8" cy="135.2" r="4.3"/><circle cx="288.4" cy="135.2" r="4.3"/><circle cx="302.0" cy="135.2" r="4.3"/><circle cx="315.6" cy="135.2" r="4.3"/><circle cx="329.2" cy="135.2" r="4.3"/><circle cx="342.8" cy="135.2" r="4.3"/><circle cx="356.4" cy="135.2" r="4.3"/><circle cx="370.0" cy="135.2" r="4.3"/><circle cx="383.6" cy="135.2" r="4.3"/><circle cx="397.2" cy="135.2" r="4.3"/><circle cx="410.8" cy="135.2" r="4.3"/><circle cx="424.4" cy="135.2" r="4.3"/><circle cx="438.0" cy="135.2" r="4.3"/><circle cx="451.6" cy="135.2" r="4.3"/><circle cx="465.2" cy="135.2" r="4.3"/><circle cx="478.8" cy="135.2" r="4.3"/><circle cx="492.4" cy="135.2" r="4.3"/><circle cx="506.0" cy="135.2" r="4.3"/><circle cx="519.6" cy="135.2" r="4.3"/><circle cx="533.2" cy="135.2" r="4.3"/><circle cx="546.8" cy="135.2" r="4.3"/><circle cx="560.4" cy="135.2" r="4.3"/><circle cx="574.0" cy="135.2" r="4.3"/><circle cx="30.0" cy="148.8" r="4.3"/><circle cx="43.6" cy="148.8" r="4.3"/><circle cx="57.2" cy="148.8" r="4.3"/><circle cx="70.8" cy="148.8" r="4.3"/><circle cx="84.4" cy="148.8" r="4.3"/><circle cx="98.0" cy="148.8" r="4.3"/><circle cx="111.6" cy="148.8" r="4.3"/><circle cx="125.2" cy="148.8" r="4.3"/><circle cx="138.8" cy="148.8" r="4.3"/><circle cx="152.4" cy="148.8" r="4.3"/><circle cx="166.0" cy="148.8" r="4.3"/><circle cx="179.6" cy="148.8" r="4.3"/><circle cx="193.2" cy="148.8" r="4.3"/><circle cx="206.8" cy="148.8" r="4.3"/><circle cx="220.4" cy="148.8" r="4.3"/><circle cx="234.0" cy="148.8" r="4.3"/><circle cx="247.6" cy="148.8" r="4.3"/><circle cx="261.2" cy="148.8" r="4.3"/><circle cx="274.8" cy="148.8" r="4.3"/><circle cx="288.4" cy="148.8" r="4.3"/><circle cx="302.0" cy="148.8" r="4.3"/><circle cx="315.6" cy="148.8" r="4.3"/><circle cx="329.2" cy="148.8" r="4.3"/><circle cx="342.8" cy="148.8" r="4.3"/><circle cx="356.4" cy="148.8" r="4.3"/><circle cx="370.0" cy="148.8" r="4.3"/><circle cx="383.6" cy="148.8" r="4.3"/><circle cx="397.2" cy="148.8" r="4.3"/><circle cx="410.8" cy="148.8" r="4.3"/><circle cx="424.4" cy="148.8" r="4.3"/><circle cx="438.0" cy="148.8" r="4.3"/><circle cx="451.6" cy="148.8" r="4.3"/><circle cx="465.2" cy="148.8" r="4.3"/><circle cx="478.8" cy="148.8" r="4.3"/><circle cx="492.4" cy="148.8" r="4.3"/><circle cx="506.0" cy="148.8" r="4.3"/><circle cx="519.6" cy="148.8" r="4.3"/><circle cx="533.2" cy="148.8" r="4.3"/><circle cx="546.8" cy="148.8" r="4.3"/><circle cx="560.4" cy="148.8" r="4.3"/><circle cx="574.0" cy="148.8" r="4.3"/><circle cx="30.0" cy="162.4" r="4.3"/><circle cx="43.6" cy="162.4" r="4.3"/><circle cx="57.2" cy="162.4" r="4.3"/><circle cx="70.8" cy="162.4" r="4.3"/><circle cx="84.4" cy="162.4" r="4.3"/><circle cx="98.0" cy="162.4" r="4.3"/><circle cx="111.6" cy="162.4" r="4.3"/><circle cx="125.2" cy="162.4" r="4.3"/><circle cx="138.8" cy="162.4" r="4.3"/><circle cx="152.4" cy="162.4" r="4.3"/><circle cx="166.0" cy="162.4" r="4.3"/><circle cx="179.6" cy="162.4" r="4.3"/><circle cx="193.2" cy="162.4" r="4.3"/><circle cx="206.8" cy="162.4" r="4.3"/><circle cx="220.4" cy="162.4" r="4.3"/><circle cx="234.0" cy="162.4" r="4.3"/><circle cx="247.6" cy="162.4" r="4.3"/><circle cx="261.2" cy="162.4" r="4.3"/><circle cx="274.8" cy="162.4" r="4.3"/><circle cx="288.4" cy="162.4" r="4.3"/><circle cx="302.0" cy="162.4" r="4.3"/><circle cx="315.6" cy="162.4" r="4.3"/><circle cx="329.2" cy="162.4" r="4.3"/><circle cx="342.8" cy="162.4" r="4.3"/><circle cx="356.4" cy="162.4" r="4.3"/><circle cx="370.0" cy="162.4" r="4.3"/><circle cx="383.6" cy="162.4" r="4.3"/><circle cx="397.2" cy="162.4" r="4.3"/><circle cx="410.8" cy="162.4" r="4.3"/><circle cx="424.4" cy="162.4" r="4.3"/><circle cx="438.0" cy="162.4" r="4.3"/><circle cx="451.6" cy="162.4" r="4.3"/><circle cx="465.2" cy="162.4" r="4.3"/><circle cx="478.8" cy="162.4" r="4.3"/><circle cx="492.4" cy="162.4" r="4.3"/><circle cx="506.0" cy="162.4" r="4.3"/><circle cx="519.6" cy="162.4" r="4.3"/><circle cx="533.2" cy="162.4" r="4.3"/><circle cx="546.8" cy="162.4" r="4.3"/><circle cx="560.4" cy="162.4" r="4.3"/><circle cx="574.0" cy="162.4" r="4.3"/><circle cx="30.0" cy="176.0" r="4.3"/><circle cx="43.6" cy="176.0" r="4.3"/><circle cx="57.2" cy="176.0" r="4.3"/><circle cx="70.8" cy="176.0" r="4.3"/><circle cx="84.4" cy="176.0" r="4.3"/><circle cx="98.0" cy="176.0" r="4.3"/><circle cx="111.6" cy="176.0" r="4.3"/><circle cx="125.2" cy="176.0" r="4.3"/><circle cx="138.8" cy="176.0" r="4.3"/><circle cx="152.4" cy="176.0" r="4.3"/><circle cx="166.0" cy="176.0" r="4.3"/><circle cx="179.6" cy="176.0" r="4.3"/><circle cx="193.2" cy="176.0" r="4.3"/><circle cx="206.8" cy="176.0" r="4.3"/><circle cx="220.4" cy="176.0" r="4.3"/><circle cx="234.0" cy="176.0" r="4.3"/><circle cx="247.6" cy="176.0" r="4.3"/><circle cx="261.2" cy="176.0" r="4.3"/><circle cx="274.8" cy="176.0" r="4.3"/><circle cx="288.4" cy="176.0" r="4.3"/><circle cx="302.0" cy="176.0" r="4.3"/><circle cx="315.6" cy="176.0" r="4.3"/><circle cx="329.2" cy="176.0" r="4.3"/><circle cx="342.8" cy="176.0" r="4.3"/><circle cx="356.4" cy="176.0" r="4.3"/><circle cx="370.0" cy="176.0" r="4.3"/><circle cx="383.6" cy="176.0" r="4.3"/><circle cx="397.2" cy="176.0" r="4.3"/><circle cx="410.8" cy="176.0" r="4.3"/><circle cx="424.4" cy="176.0" r="4.3"/><circle cx="438.0" cy="176.0" r="4.3"/><circle cx="451.6" cy="176.0" r="4.3"/><circle cx="465.2" cy="176.0" r="4.3"/><circle cx="478.8" cy="176.0" r="4.3"/><circle cx="492.4" cy="176.0" r="4.3"/><circle cx="506.0" cy="176.0" r="4.3"/><circle cx="519.6" cy="176.0" r="4.3"/><circle cx="533.2" cy="176.0" r="4.3"/><circle cx="546.8" cy="176.0" r="4.3"/><circle cx="560.4" cy="176.0" r="4.3"/><circle cx="574.0" cy="176.0" r="4.3"/><circle cx="30.0" cy="189.6" r="4.3"/><circle cx="43.6" cy="189.6" r="4.3"/><circle cx="57.2" cy="189.6" r="4.3"/><circle cx="70.8" cy="189.6" r="4.3"/><circle cx="84.4" cy="189.6" r="4.3"/><circle cx="98.0" cy="189.6" r="4.3"/><circle cx="111.6" cy="189.6" r="4.3"/><circle cx="125.2" cy="189.6" r="4.3"/><circle cx="138.8" cy="189.6" r="4.3"/><circle cx="152.4" cy="189.6" r="4.3"/><circle cx="166.0" cy="189.6" r="4.3"/><circle cx="179.6" cy="189.6" r="4.3"/><circle cx="193.2" cy="189.6" r="4.3"/><circle cx="206.8" cy="189.6" r="4.3"/><circle cx="220.4" cy="189.6" r="4.3"/><circle cx="234.0" cy="189.6" r="4.3"/><circle cx="247.6" cy="189.6" r="4.3"/><circle cx="261.2" cy="189.6" r="4.3"/><circle cx="274.8" cy="189.6" r="4.3"/><circle cx="288.4" cy="189.6" r="4.3"/><circle cx="302.0" cy="189.6" r="4.3"/><circle cx="315.6" cy="189.6" r="4.3"/><circle cx="329.2" cy="189.6" r="4.3"/><circle cx="342.8" cy="189.6" r="4.3"/><circle cx="356.4" cy="189.6" r="4.3"/><circle cx="370.0" cy="189.6" r="4.3"/><circle cx="383.6" cy="189.6" r="4.3"/><circle cx="397.2" cy="189.6" r="4.3"/><circle cx="410.8" cy="189.6" r="4.3"/><circle cx="424.4" cy="189.6" r="4.3"/><circle cx="438.0" cy="189.6" r="4.3"/><circle cx="451.6" cy="189.6" r="4.3"/><circle cx="465.2" cy="189.6" r="4.3"/><circle cx="478.8" cy="189.6" r="4.3"/><circle cx="492.4" cy="189.6" r="4.3"/><circle cx="506.0" cy="189.6" r="4.3"/><circle cx="519.6" cy="189.6" r="4.3"/><circle cx="533.2" cy="189.6" r="4.3"/><circle cx="546.8" cy="189.6" r="4.3"/><circle cx="560.4" cy="189.6" r="4.3"/><circle cx="574.0" cy="189.6" r="4.3"/><circle cx="30.0" cy="203.2" r="4.3"/><circle cx="43.6" cy="203.2" r="4.3"/><circle cx="57.2" cy="203.2" r="4.3"/><circle cx="70.8" cy="203.2" r="4.3"/><circle cx="84.4" cy="203.2" r="4.3"/><circle cx="98.0" cy="203.2" r="4.3"/><circle cx="111.6" cy="203.2" r="4.3"/><circle cx="125.2" cy="203.2" r="4.3"/><circle cx="138.8" cy="203.2" r="4.3"/><circle cx="152.4" cy="203.2" r="4.3"/><circle cx="166.0" cy="203.2" r="4.3"/><circle cx="179.6" cy="203.2" r="4.3"/><circle cx="193.2" cy="203.2" r="4.3"/><circle cx="206.8" cy="203.2" r="4.3"/><circle cx="220.4" cy="203.2" r="4.3"/><circle cx="234.0" cy="203.2" r="4.3"/><circle cx="247.6" cy="203.2" r="4.3"/><circle cx="261.2" cy="203.2" r="4.3"/><circle cx="274.8" cy="203.2" r="4.3"/><circle cx="288.4" cy="203.2" r="4.3"/><circle cx="302.0" cy="203.2" r="4.3"/><circle cx="315.6" cy="203.2" r="4.3"/><circle cx="329.2" cy="203.2" r="4.3"/><circle cx="342.8" cy="203.2" r="4.3"/><circle cx="356.4" cy="203.2" r="4.3"/><circle cx="370.0" cy="203.2" r="4.3"/><circle cx="383.6" cy="203.2" r="4.3"/><circle cx="397.2" cy="203.2" r="4.3"/><circle cx="410.8" cy="203.2" r="4.3"/><circle cx="424.4" cy="203.2" r="4.3"/><circle cx="438.0" cy="203.2" r="4.3"/><circle cx="451.6" cy="203.2" r="4.3"/><circle cx="465.2" cy="203.2" r="4.3"/><circle cx="478.8" cy="203.2" r="4.3"/><circle cx="492.4" cy="203.2" r="4.3"/><circle cx="506.0" cy="203.2" r="4.3"/><circle cx="519.6" cy="203.2" r="4.3"/><circle cx="533.2" cy="203.2" r="4.3"/><circle cx="546.8" cy="203.2" r="4.3"/><circle cx="560.4" cy="203.2" r="4.3"/><circle cx="574.0" cy="203.2" r="4.3"/><circle cx="30.0" cy="216.8" r="4.3"/><circle cx="43.6" cy="216.8" r="4.3"/><circle cx="57.2" cy="216.8" r="4.3"/><circle cx="70.8" cy="216.8" r="4.3"/><circle cx="84.4" cy="216.8" r="4.3"/><circle cx="98.0" cy="216.8" r="4.3"/><circle cx="111.6" cy="216.8" r="4.3"/><circle cx="125.2" cy="216.8" r="4.3"/><circle cx="138.8" cy="216.8" r="4.3"/><circle cx="152.4" cy="216.8" r="4.3"/><circle cx="166.0" cy="216.8" r="4.3"/><circle cx="179.6" cy="216.8" r="4.3"/><circle cx="193.2" cy="216.8" r="4.3"/><circle cx="206.8" cy="216.8" r="4.3"/><circle cx="220.4" cy="216.8" r="4.3"/><circle cx="234.0" cy="216.8" r="4.3"/><circle cx="247.6" cy="216.8" r="4.3"/><circle cx="261.2" cy="216.8" r="4.3"/><circle cx="274.8" cy="216.8" r="4.3"/><circle cx="288.4" cy="216.8" r="4.3"/><circle cx="302.0" cy="216.8" r="4.3"/><circle cx="315.6" cy="216.8" r="4.3"/><circle cx="329.2" cy="216.8" r="4.3"/><circle cx="342.8" cy="216.8" r="4.3"/><circle cx="356.4" cy="216.8" r="4.3"/><circle cx="370.0" cy="216.8" r="4.3"/><circle cx="383.6" cy="216.8" r="4.3"/><circle cx="397.2" cy="216.8" r="4.3"/><circle cx="410.8" cy="216.8" r="4.3"/><circle cx="424.4" cy="216.8" r="4.3"/><circle cx="438.0" cy="216.8" r="4.3"/><circle cx="451.6" cy="216.8" r="4.3"/><circle cx="465.2" cy="216.8" r="4.3"/><circle cx="478.8" cy="216.8" r="4.3"/><circle cx="492.4" cy="216.8" r="4.3"/><circle cx="506.0" cy="216.8" r="4.3"/><circle cx="519.6" cy="216.8" r="4.3"/><circle cx="533.2" cy="216.8" r="4.3"/><circle cx="546.8" cy="216.8" r="4.3"/><circle cx="560.4" cy="216.8" r="4.3"/><circle cx="574.0" cy="216.8" r="4.3"/><circle cx="30.0" cy="230.4" r="4.3"/><circle cx="43.6" cy="230.4" r="4.3"/><circle cx="57.2" cy="230.4" r="4.3"/><circle cx="70.8" cy="230.4" r="4.3"/><circle cx="84.4" cy="230.4" r="4.3"/><circle cx="98.0" cy="230.4" r="4.3"/><circle cx="111.6" cy="230.4" r="4.3"/><circle cx="125.2" cy="230.4" r="4.3"/><circle cx="138.8" cy="230.4" r="4.3"/><circle cx="152.4" cy="230.4" r="4.3"/><circle cx="166.0" cy="230.4" r="4.3"/><circle cx="179.6" cy="230.4" r="4.3"/><circle cx="193.2" cy="230.4" r="4.3"/><circle cx="206.8" cy="230.4" r="4.3"/><circle cx="220.4" cy="230.4" r="4.3"/><circle cx="234.0" cy="230.4" r="4.3"/><circle cx="247.6" cy="230.4" r="4.3"/><circle cx="261.2" cy="230.4" r="4.3"/><circle cx="274.8" cy="230.4" r="4.3"/><circle cx="288.4" cy="230.4" r="4.3"/><circle cx="302.0" cy="230.4" r="4.3"/><circle cx="315.6" cy="230.4" r="4.3"/><circle cx="329.2" cy="230.4" r="4.3"/><circle cx="342.8" cy="230.4" r="4.3"/><circle cx="356.4" cy="230.4" r="4.3"/><circle cx="370.0" cy="230.4" r="4.3"/><circle cx="383.6" cy="230.4" r="4.3"/><circle cx="397.2" cy="230.4" r="4.3"/><circle cx="410.8" cy="230.4" r="4.3"/><circle cx="424.4" cy="230.4" r="4.3"/><circle cx="438.0" cy="230.4" r="4.3"/><circle cx="451.6" cy="230.4" r="4.3"/><circle cx="465.2" cy="230.4" r="4.3"/><circle cx="478.8" cy="230.4" r="4.3"/><circle cx="492.4" cy="230.4" r="4.3"/><circle cx="506.0" cy="230.4" r="4.3"/><circle cx="519.6" cy="230.4" r="4.3"/><circle cx="533.2" cy="230.4" r="4.3"/><circle cx="546.8" cy="230.4" r="4.3"/><circle cx="560.4" cy="230.4" r="4.3"/><circle cx="574.0" cy="230.4" r="4.3"/><circle cx="30.0" cy="244.0" r="4.3"/><circle cx="43.6" cy="244.0" r="4.3"/><circle cx="57.2" cy="244.0" r="4.3"/><circle cx="70.8" cy="244.0" r="4.3"/><circle cx="84.4" cy="244.0" r="4.3"/><circle cx="98.0" cy="244.0" r="4.3"/><circle cx="111.6" cy="244.0" r="4.3"/><circle cx="125.2" cy="244.0" r="4.3"/><circle cx="138.8" cy="244.0" r="4.3"/><circle cx="152.4" cy="244.0" r="4.3"/><circle cx="166.0" cy="244.0" r="4.3"/><circle cx="179.6" cy="244.0" r="4.3"/><circle cx="193.2" cy="244.0" r="4.3"/><circle cx="206.8" cy="244.0" r="4.3"/><circle cx="220.4" cy="244.0" r="4.3"/><circle cx="234.0" cy="244.0" r="4.3"/><circle cx="247.6" cy="244.0" r="4.3"/><circle cx="261.2" cy="244.0" r="4.3"/><circle cx="274.8" cy="244.0" r="4.3"/><circle cx="288.4" cy="244.0" r="4.3"/><circle cx="302.0" cy="244.0" r="4.3"/><circle cx="315.6" cy="244.0" r="4.3"/><circle cx="329.2" cy="244.0" r="4.3"/><circle cx="342.8" cy="244.0" r="4.3"/><circle cx="356.4" cy="244.0" r="4.3"/><circle cx="370.0" cy="244.0" r="4.3"/><circle cx="383.6" cy="244.0" r="4.3"/><circle cx="397.2" cy="244.0" r="4.3"/><circle cx="410.8" cy="244.0" r="4.3"/><circle cx="424.4" cy="244.0" r="4.3"/><circle cx="438.0" cy="244.0" r="4.3"/><circle cx="451.6" cy="244.0" r="4.3"/><circle cx="465.2" cy="244.0" r="4.3"/><circle cx="478.8" cy="244.0" r="4.3"/><circle cx="492.4" cy="244.0" r="4.3"/><circle cx="506.0" cy="244.0" r="4.3"/><circle cx="519.6" cy="244.0" r="4.3"/><circle cx="533.2" cy="244.0" r="4.3"/><circle cx="546.8" cy="244.0" r="4.3"/><circle cx="560.4" cy="244.0" r="4.3"/><circle cx="574.0" cy="244.0" r="4.3"/><circle cx="30.0" cy="257.6" r="4.3"/><circle cx="43.6" cy="257.6" r="4.3"/><circle cx="57.2" cy="257.6" r="4.3"/><circle cx="70.8" cy="257.6" r="4.3"/><circle cx="84.4" cy="257.6" r="4.3"/><circle cx="98.0" cy="257.6" r="4.3"/><circle cx="111.6" cy="257.6" r="4.3"/><circle cx="125.2" cy="257.6" r="4.3"/><circle cx="138.8" cy="257.6" r="4.3"/><circle cx="152.4" cy="257.6" r="4.3"/><circle cx="166.0" cy="257.6" r="4.3"/><circle cx="179.6" cy="257.6" r="4.3"/><circle cx="193.2" cy="257.6" r="4.3"/><circle cx="206.8" cy="257.6" r="4.3"/><circle cx="220.4" cy="257.6" r="4.3"/><circle cx="234.0" cy="257.6" r="4.3"/><circle cx="247.6" cy="257.6" r="4.3"/><circle cx="261.2" cy="257.6" r="4.3"/><circle cx="274.8" cy="257.6" r="4.3"/><circle cx="288.4" cy="257.6" r="4.3"/><circle cx="302.0" cy="257.6" r="4.3"/><circle cx="315.6" cy="257.6" r="4.3"/><circle cx="329.2" cy="257.6" r="4.3"/><circle cx="342.8" cy="257.6" r="4.3"/><circle cx="356.4" cy="257.6" r="4.3"/><circle cx="370.0" cy="257.6" r="4.3"/><circle cx="383.6" cy="257.6" r="4.3"/><circle cx="397.2" cy="257.6" r="4.3"/><circle cx="410.8" cy="257.6" r="4.3"/><circle cx="424.4" cy="257.6" r="4.3"/><circle cx="438.0" cy="257.6" r="4.3"/><circle cx="451.6" cy="257.6" r="4.3"/><circle cx="465.2" cy="257.6" r="4.3"/><circle cx="478.8" cy="257.6" r="4.3"/><circle cx="492.4" cy="257.6" r="4.3"/><circle cx="506.0" cy="257.6" r="4.3"/><circle cx="519.6" cy="257.6" r="4.3"/><circle cx="533.2" cy="257.6" r="4.3"/><circle cx="546.8" cy="257.6" r="4.3"/><circle cx="560.4" cy="257.6" r="4.3"/><circle cx="574.0" cy="257.6" r="4.3"/><circle cx="30.0" cy="271.2" r="4.3"/><circle cx="43.6" cy="271.2" r="4.3"/><circle cx="57.2" cy="271.2" r="4.3"/><circle cx="70.8" cy="271.2" r="4.3"/><circle cx="84.4" cy="271.2" r="4.3"/><circle cx="98.0" cy="271.2" r="4.3"/><circle cx="111.6" cy="271.2" r="4.3"/><circle cx="125.2" cy="271.2" r="4.3"/><circle cx="138.8" cy="271.2" r="4.3"/><circle cx="152.4" cy="271.2" r="4.3"/><circle cx="166.0" cy="271.2" r="4.3"/><circle cx="179.6" cy="271.2" r="4.3"/><circle cx="193.2" cy="271.2" r="4.3"/><circle cx="206.8" cy="271.2" r="4.3"/><circle cx="220.4" cy="271.2" r="4.3"/><circle cx="234.0" cy="271.2" r="4.3"/><circle cx="247.6" cy="271.2" r="4.3"/><circle cx="261.2" cy="271.2" r="4.3"/><circle cx="274.8" cy="271.2" r="4.3"/><circle cx="288.4" cy="271.2" r="4.3"/><circle cx="302.0" cy="271.2" r="4.3"/><circle cx="315.6" cy="271.2" r="4.3"/><circle cx="329.2" cy="271.2" r="4.3"/><circle cx="342.8" cy="271.2" r="4.3"/><circle cx="356.4" cy="271.2" r="4.3"/><circle cx="370.0" cy="271.2" r="4.3"/><circle cx="383.6" cy="271.2" r="4.3"/><circle cx="397.2" cy="271.2" r="4.3"/><circle cx="410.8" cy="271.2" r="4.3"/><circle cx="424.4" cy="271.2" r="4.3"/><circle cx="438.0" cy="271.2" r="4.3"/><circle cx="451.6" cy="271.2" r="4.3"/><circle cx="465.2" cy="271.2" r="4.3"/><circle cx="478.8" cy="271.2" r="4.3"/><circle cx="492.4" cy="271.2" r="4.3"/><circle cx="506.0" cy="271.2" r="4.3"/><circle cx="519.6" cy="271.2" r="4.3"/><circle cx="533.2" cy="271.2" r="4.3"/><circle cx="546.8" cy="271.2" r="4.3"/><circle cx="560.4" cy="271.2" r="4.3"/><circle cx="574.0" cy="271.2" r="4.3"/><circle cx="30.0" cy="284.8" r="4.3"/><circle cx="43.6" cy="284.8" r="4.3"/><circle cx="57.2" cy="284.8" r="4.3"/><circle cx="70.8" cy="284.8" r="4.3"/><circle cx="84.4" cy="284.8" r="4.3"/><circle cx="98.0" cy="284.8" r="4.3"/><circle cx="111.6" cy="284.8" r="4.3"/><circle cx="125.2" cy="284.8" r="4.3"/><circle cx="138.8" cy="284.8" r="4.3"/><circle cx="152.4" cy="284.8" r="4.3"/><circle cx="166.0" cy="284.8" r="4.3"/><circle cx="179.6" cy="284.8" r="4.3"/><circle cx="193.2" cy="284.8" r="4.3"/><circle cx="206.8" cy="284.8" r="4.3"/><circle cx="220.4" cy="284.8" r="4.3"/><circle cx="234.0" cy="284.8" r="4.3"/><circle cx="247.6" cy="284.8" r="4.3"/><circle cx="261.2" cy="284.8" r="4.3"/><circle cx="274.8" cy="284.8" r="4.3"/><circle cx="288.4" cy="284.8" r="4.3"/><circle cx="302.0" cy="284.8" r="4.3"/><circle cx="315.6" cy="284.8" r="4.3"/><circle cx="329.2" cy="284.8" r="4.3"/><circle cx="342.8" cy="284.8" r="4.3"/><circle cx="356.4" cy="284.8" r="4.3"/><circle cx="370.0" cy="284.8" r="4.3"/><circle cx="383.6" cy="284.8" r="4.3"/><circle cx="397.2" cy="284.8" r="4.3"/><circle cx="410.8" cy="284.8" r="4.3"/><circle cx="424.4" cy="284.8" r="4.3"/><circle cx="438.0" cy="284.8" r="4.3"/><circle cx="451.6" cy="284.8" r="4.3"/><circle cx="465.2" cy="284.8" r="4.3"/><circle cx="478.8" cy="284.8" r="4.3"/><circle cx="492.4" cy="284.8" r="4.3"/><circle cx="506.0" cy="284.8" r="4.3"/><circle cx="519.6" cy="284.8" r="4.3"/><circle cx="533.2" cy="284.8" r="4.3"/><circle cx="546.8" cy="284.8" r="4.3"/><circle cx="560.4" cy="284.8" r="4.3"/><circle cx="574.0" cy="284.8" r="4.3"/><circle cx="30.0" cy="298.4" r="4.3"/><circle cx="43.6" cy="298.4" r="4.3"/><circle cx="57.2" cy="298.4" r="4.3"/><circle cx="70.8" cy="298.4" r="4.3"/><circle cx="84.4" cy="298.4" r="4.3"/><circle cx="98.0" cy="298.4" r="4.3"/><circle cx="111.6" cy="298.4" r="4.3"/><circle cx="125.2" cy="298.4" r="4.3"/><circle cx="138.8" cy="298.4" r="4.3"/><circle cx="152.4" cy="298.4" r="4.3"/><circle cx="166.0" cy="298.4" r="4.3"/><circle cx="179.6" cy="298.4" r="4.3"/><circle cx="193.2" cy="298.4" r="4.3"/><circle cx="206.8" cy="298.4" r="4.3"/><circle cx="220.4" cy="298.4" r="4.3"/><circle cx="234.0" cy="298.4" r="4.3"/><circle cx="247.6" cy="298.4" r="4.3"/><circle cx="261.2" cy="298.4" r="4.3"/><circle cx="274.8" cy="298.4" r="4.3"/><circle cx="288.4" cy="298.4" r="4.3"/><circle cx="302.0" cy="298.4" r="4.3"/><circle cx="315.6" cy="298.4" r="4.3"/><circle cx="329.2" cy="298.4" r="4.3"/><circle cx="342.8" cy="298.4" r="4.3"/><circle cx="356.4" cy="298.4" r="4.3"/><circle cx="370.0" cy="298.4" r="4.3"/><circle cx="383.6" cy="298.4" r="4.3"/><circle cx="397.2" cy="298.4" r="4.3"/><circle cx="410.8" cy="298.4" r="4.3"/><circle cx="424.4" cy="298.4" r="4.3"/><circle cx="438.0" cy="298.4" r="4.3"/><circle cx="451.6" cy="298.4" r="4.3"/><circle cx="465.2" cy="298.4" r="4.3"/><circle cx="478.8" cy="298.4" r="4.3"/><circle cx="492.4" cy="298.4" r="4.3"/><circle cx="506.0" cy="298.4" r="4.3"/><circle cx="519.6" cy="298.4" r="4.3"/><circle cx="533.2" cy="298.4" r="4.3"/><circle cx="546.8" cy="298.4" r="4.3"/><circle cx="560.4" cy="298.4" r="4.3"/><circle cx="574.0" cy="298.4" r="4.3"/><circle cx="30.0" cy="312.0" r="4.3"/><circle cx="43.6" cy="312.0" r="4.3"/><circle cx="57.2" cy="312.0" r="4.3"/><circle cx="70.8" cy="312.0" r="4.3"/><circle cx="84.4" cy="312.0" r="4.3"/><circle cx="98.0" cy="312.0" r="4.3"/><circle cx="111.6" cy="312.0" r="4.3"/><circle cx="125.2" cy="312.0" r="4.3"/><circle cx="138.8" cy="312.0" r="4.3"/><circle cx="152.4" cy="312.0" r="4.3"/><circle cx="166.0" cy="312.0" r="4.3"/><circle cx="179.6" cy="312.0" r="4.3"/><circle cx="193.2" cy="312.0" r="4.3"/><circle cx="206.8" cy="312.0" r="4.3"/><circle cx="220.4" cy="312.0" r="4.3"/><circle cx="234.0" cy="312.0" r="4.3"/><circle cx="247.6" cy="312.0" r="4.3"/><circle cx="261.2" cy="312.0" r="4.3"/><circle cx="274.8" cy="312.0" r="4.3"/><circle cx="288.4" cy="312.0" r="4.3"/><circle cx="302.0" cy="312.0" r="4.3"/><circle cx="315.6" cy="312.0" r="4.3"/><circle cx="329.2" cy="312.0" r="4.3"/><circle cx="342.8" cy="312.0" r="4.3"/><circle cx="356.4" cy="312.0" r="4.3"/><circle cx="370.0" cy="312.0" r="4.3"/><circle cx="383.6" cy="312.0" r="4.3"/><circle cx="397.2" cy="312.0" r="4.3"/><circle cx="410.8" cy="312.0" r="4.3"/><circle cx="424.4" cy="312.0" r="4.3"/><circle cx="438.0" cy="312.0" r="4.3"/><circle cx="451.6" cy="312.0" r="4.3"/><circle cx="465.2" cy="312.0" r="4.3"/><circle cx="478.8" cy="312.0" r="4.3"/><circle cx="492.4" cy="312.0" r="4.3"/><circle cx="506.0" cy="312.0" r="4.3"/><circle cx="519.6" cy="312.0" r="4.3"/><circle cx="533.2" cy="312.0" r="4.3"/><circle cx="546.8" cy="312.0" r="4.3"/><circle cx="560.4" cy="312.0" r="4.3"/><circle cx="574.0" cy="312.0" r="4.3"/><circle cx="30.0" cy="325.6" r="4.3"/><circle cx="43.6" cy="325.6" r="4.3"/><circle cx="57.2" cy="325.6" r="4.3"/><circle cx="70.8" cy="325.6" r="4.3"/><circle cx="84.4" cy="325.6" r="4.3"/><circle cx="98.0" cy="325.6" r="4.3"/><circle cx="111.6" cy="325.6" r="4.3"/><circle cx="125.2" cy="325.6" r="4.3"/><circle cx="138.8" cy="325.6" r="4.3"/><circle cx="152.4" cy="325.6" r="4.3"/><circle cx="166.0" cy="325.6" r="4.3"/><circle cx="179.6" cy="325.6" r="4.3"/><circle cx="193.2" cy="325.6" r="4.3"/><circle cx="206.8" cy="325.6" r="4.3"/><circle cx="220.4" cy="325.6" r="4.3"/><circle cx="234.0" cy="325.6" r="4.3"/><circle cx="247.6" cy="325.6" r="4.3"/><circle cx="261.2" cy="325.6" r="4.3"/><circle cx="274.8" cy="325.6" r="4.3"/><circle cx="288.4" cy="325.6" r="4.3"/><circle cx="302.0" cy="325.6" r="4.3"/><circle cx="315.6" cy="325.6" r="4.3"/><circle cx="329.2" cy="325.6" r="4.3"/><circle cx="342.8" cy="325.6" r="4.3"/><circle cx="356.4" cy="325.6" r="4.3"/><circle cx="370.0" cy="325.6" r="4.3"/><circle cx="383.6" cy="325.6" r="4.3"/><circle cx="397.2" cy="325.6" r="4.3"/><circle cx="410.8" cy="325.6" r="4.3"/><circle cx="424.4" cy="325.6" r="4.3"/><circle cx="438.0" cy="325.6" r="4.3"/><circle cx="451.6" cy="325.6" r="4.3"/><circle cx="465.2" cy="325.6" r="4.3"/><circle cx="478.8" cy="325.6" r="4.3"/><circle cx="492.4" cy="325.6" r="4.3"/><circle cx="506.0" cy="325.6" r="4.3"/><circle cx="519.6" cy="325.6" r="4.3"/><circle cx="533.2" cy="325.6" r="4.3"/><circle cx="546.8" cy="325.6" r="4.3"/></g>
+            <g data-step="1" class="waffle-hit"><circle cx="30.0" cy="40.0" r="4.3"/><circle cx="43.6" cy="40.0" r="4.3"/><circle cx="57.2" cy="40.0" r="4.3"/><circle cx="70.8" cy="40.0" r="4.3"/><circle cx="84.4" cy="40.0" r="4.3"/><circle cx="98.0" cy="40.0" r="4.3"/><circle cx="111.6" cy="40.0" r="4.3"/><circle cx="125.2" cy="40.0" r="4.3"/><circle cx="138.8" cy="40.0" r="4.3"/><circle cx="152.4" cy="40.0" r="4.3"/><circle cx="166.0" cy="40.0" r="4.3"/><circle cx="179.6" cy="40.0" r="4.3"/><circle cx="193.2" cy="40.0" r="4.3"/><circle cx="206.8" cy="40.0" r="4.3"/><circle cx="220.4" cy="40.0" r="4.3"/><circle cx="234.0" cy="40.0" r="4.3"/><circle cx="247.6" cy="40.0" r="4.3"/><circle cx="261.2" cy="40.0" r="4.3"/><circle cx="274.8" cy="40.0" r="4.3"/><circle cx="288.4" cy="40.0" r="4.3"/><circle cx="302.0" cy="40.0" r="4.3"/><circle cx="315.6" cy="40.0" r="4.3"/><circle cx="329.2" cy="40.0" r="4.3"/><circle cx="342.8" cy="40.0" r="4.3"/><circle cx="356.4" cy="40.0" r="4.3"/><circle cx="370.0" cy="40.0" r="4.3"/><circle cx="383.6" cy="40.0" r="4.3"/><circle cx="397.2" cy="40.0" r="4.3"/><circle cx="410.8" cy="40.0" r="4.3"/><circle cx="424.4" cy="40.0" r="4.3"/><circle cx="438.0" cy="40.0" r="4.3"/><circle cx="451.6" cy="40.0" r="4.3"/><circle cx="465.2" cy="40.0" r="4.3"/><circle cx="478.8" cy="40.0" r="4.3"/><circle cx="492.4" cy="40.0" r="4.3"/><circle cx="506.0" cy="40.0" r="4.3"/><circle cx="519.6" cy="40.0" r="4.3"/><circle cx="533.2" cy="40.0" r="4.3"/><circle cx="546.8" cy="40.0" r="4.3"/><circle cx="560.4" cy="40.0" r="4.3"/><circle cx="574.0" cy="40.0" r="4.3"/><circle cx="30.0" cy="53.6" r="4.3"/><circle cx="43.6" cy="53.6" r="4.3"/><circle cx="57.2" cy="53.6" r="4.3"/><circle cx="70.8" cy="53.6" r="4.3"/><circle cx="84.4" cy="53.6" r="4.3"/><circle cx="98.0" cy="53.6" r="4.3"/><circle cx="111.6" cy="53.6" r="4.3"/><circle cx="125.2" cy="53.6" r="4.3"/><circle cx="138.8" cy="53.6" r="4.3"/><circle cx="152.4" cy="53.6" r="4.3"/><circle cx="166.0" cy="53.6" r="4.3"/><circle cx="179.6" cy="53.6" r="4.3"/><circle cx="193.2" cy="53.6" r="4.3"/><circle cx="206.8" cy="53.6" r="4.3"/><circle cx="220.4" cy="53.6" r="4.3"/><circle cx="234.0" cy="53.6" r="4.3"/><circle cx="247.6" cy="53.6" r="4.3"/><circle cx="261.2" cy="53.6" r="4.3"/><circle cx="274.8" cy="53.6" r="4.3"/><circle cx="288.4" cy="53.6" r="4.3"/><circle cx="302.0" cy="53.6" r="4.3"/><circle cx="315.6" cy="53.6" r="4.3"/><circle cx="329.2" cy="53.6" r="4.3"/><circle cx="342.8" cy="53.6" r="4.3"/><circle cx="356.4" cy="53.6" r="4.3"/><circle cx="370.0" cy="53.6" r="4.3"/><circle cx="383.6" cy="53.6" r="4.3"/><circle cx="397.2" cy="53.6" r="4.3"/><circle cx="410.8" cy="53.6" r="4.3"/><circle cx="424.4" cy="53.6" r="4.3"/><circle cx="438.0" cy="53.6" r="4.3"/><circle cx="451.6" cy="53.6" r="4.3"/><circle cx="465.2" cy="53.6" r="4.3"/><circle cx="478.8" cy="53.6" r="4.3"/><circle cx="492.4" cy="53.6" r="4.3"/><circle cx="506.0" cy="53.6" r="4.3"/><circle cx="519.6" cy="53.6" r="4.3"/><circle cx="533.2" cy="53.6" r="4.3"/><circle cx="546.8" cy="53.6" r="4.3"/><circle cx="560.4" cy="53.6" r="4.3"/><circle cx="574.0" cy="53.6" r="4.3"/><circle cx="30.0" cy="67.2" r="4.3"/><circle cx="43.6" cy="67.2" r="4.3"/><circle cx="57.2" cy="67.2" r="4.3"/><circle cx="70.8" cy="67.2" r="4.3"/><circle cx="84.4" cy="67.2" r="4.3"/><circle cx="98.0" cy="67.2" r="4.3"/><circle cx="111.6" cy="67.2" r="4.3"/><circle cx="125.2" cy="67.2" r="4.3"/><circle cx="138.8" cy="67.2" r="4.3"/><circle cx="152.4" cy="67.2" r="4.3"/><circle cx="166.0" cy="67.2" r="4.3"/><circle cx="179.6" cy="67.2" r="4.3"/><circle cx="193.2" cy="67.2" r="4.3"/><circle cx="206.8" cy="67.2" r="4.3"/><circle cx="220.4" cy="67.2" r="4.3"/><circle cx="234.0" cy="67.2" r="4.3"/><circle cx="247.6" cy="67.2" r="4.3"/><circle cx="261.2" cy="67.2" r="4.3"/><circle cx="274.8" cy="67.2" r="4.3"/><circle cx="288.4" cy="67.2" r="4.3"/><circle cx="302.0" cy="67.2" r="4.3"/><circle cx="315.6" cy="67.2" r="4.3"/><circle cx="329.2" cy="67.2" r="4.3"/><circle cx="342.8" cy="67.2" r="4.3"/><circle cx="356.4" cy="67.2" r="4.3"/><circle cx="370.0" cy="67.2" r="4.3"/><circle cx="383.6" cy="67.2" r="4.3"/><circle cx="397.2" cy="67.2" r="4.3"/><circle cx="410.8" cy="67.2" r="4.3"/><circle cx="424.4" cy="67.2" r="4.3"/><circle cx="438.0" cy="67.2" r="4.3"/><circle cx="451.6" cy="67.2" r="4.3"/><circle cx="465.2" cy="67.2" r="4.3"/><circle cx="478.8" cy="67.2" r="4.3"/><circle cx="492.4" cy="67.2" r="4.3"/><circle cx="506.0" cy="67.2" r="4.3"/><circle cx="519.6" cy="67.2" r="4.3"/><circle cx="533.2" cy="67.2" r="4.3"/><circle cx="546.8" cy="67.2" r="4.3"/><circle cx="560.4" cy="67.2" r="4.3"/><circle cx="574.0" cy="67.2" r="4.3"/><circle cx="30.0" cy="80.8" r="4.3"/><circle cx="43.6" cy="80.8" r="4.3"/><circle cx="57.2" cy="80.8" r="4.3"/><circle cx="70.8" cy="80.8" r="4.3"/><circle cx="84.4" cy="80.8" r="4.3"/><circle cx="98.0" cy="80.8" r="4.3"/><circle cx="111.6" cy="80.8" r="4.3"/><circle cx="125.2" cy="80.8" r="4.3"/><circle cx="138.8" cy="80.8" r="4.3"/><circle cx="152.4" cy="80.8" r="4.3"/><circle cx="166.0" cy="80.8" r="4.3"/><circle cx="179.6" cy="80.8" r="4.3"/><circle cx="193.2" cy="80.8" r="4.3"/><circle cx="206.8" cy="80.8" r="4.3"/><circle cx="220.4" cy="80.8" r="4.3"/><circle cx="234.0" cy="80.8" r="4.3"/><circle cx="247.6" cy="80.8" r="4.3"/><circle cx="261.2" cy="80.8" r="4.3"/><circle cx="274.8" cy="80.8" r="4.3"/><circle cx="288.4" cy="80.8" r="4.3"/><circle cx="302.0" cy="80.8" r="4.3"/><circle cx="315.6" cy="80.8" r="4.3"/><circle cx="329.2" cy="80.8" r="4.3"/><circle cx="342.8" cy="80.8" r="4.3"/><circle cx="356.4" cy="80.8" r="4.3"/><circle cx="370.0" cy="80.8" r="4.3"/><circle cx="383.6" cy="80.8" r="4.3"/><circle cx="397.2" cy="80.8" r="4.3"/><circle cx="410.8" cy="80.8" r="4.3"/><circle cx="424.4" cy="80.8" r="4.3"/><circle cx="438.0" cy="80.8" r="4.3"/><circle cx="451.6" cy="80.8" r="4.3"/><circle cx="465.2" cy="80.8" r="4.3"/><circle cx="478.8" cy="80.8" r="4.3"/><circle cx="492.4" cy="80.8" r="4.3"/><circle cx="506.0" cy="80.8" r="4.3"/><circle cx="519.6" cy="80.8" r="4.3"/><circle cx="533.2" cy="80.8" r="4.3"/><circle cx="546.8" cy="80.8" r="4.3"/><circle cx="560.4" cy="80.8" r="4.3"/><circle cx="574.0" cy="80.8" r="4.3"/><circle cx="30.0" cy="94.4" r="4.3"/><circle cx="43.6" cy="94.4" r="4.3"/><circle cx="57.2" cy="94.4" r="4.3"/><circle cx="70.8" cy="94.4" r="4.3"/><circle cx="84.4" cy="94.4" r="4.3"/><circle cx="98.0" cy="94.4" r="4.3"/><circle cx="111.6" cy="94.4" r="4.3"/><circle cx="125.2" cy="94.4" r="4.3"/><circle cx="138.8" cy="94.4" r="4.3"/><circle cx="152.4" cy="94.4" r="4.3"/><circle cx="166.0" cy="94.4" r="4.3"/><circle cx="179.6" cy="94.4" r="4.3"/><circle cx="193.2" cy="94.4" r="4.3"/><circle cx="206.8" cy="94.4" r="4.3"/><circle cx="220.4" cy="94.4" r="4.3"/><circle cx="234.0" cy="94.4" r="4.3"/><circle cx="247.6" cy="94.4" r="4.3"/><circle cx="261.2" cy="94.4" r="4.3"/><circle cx="274.8" cy="94.4" r="4.3"/><circle cx="288.4" cy="94.4" r="4.3"/><circle cx="302.0" cy="94.4" r="4.3"/><circle cx="315.6" cy="94.4" r="4.3"/><circle cx="329.2" cy="94.4" r="4.3"/><circle cx="342.8" cy="94.4" r="4.3"/><circle cx="356.4" cy="94.4" r="4.3"/><circle cx="370.0" cy="94.4" r="4.3"/><circle cx="383.6" cy="94.4" r="4.3"/><circle cx="397.2" cy="94.4" r="4.3"/><circle cx="410.8" cy="94.4" r="4.3"/><circle cx="424.4" cy="94.4" r="4.3"/><circle cx="438.0" cy="94.4" r="4.3"/><circle cx="451.6" cy="94.4" r="4.3"/><circle cx="465.2" cy="94.4" r="4.3"/><circle cx="478.8" cy="94.4" r="4.3"/><circle cx="492.4" cy="94.4" r="4.3"/><circle cx="506.0" cy="94.4" r="4.3"/><circle cx="519.6" cy="94.4" r="4.3"/><circle cx="533.2" cy="94.4" r="4.3"/><circle cx="546.8" cy="94.4" r="4.3"/><circle cx="560.4" cy="94.4" r="4.3"/><circle cx="574.0" cy="94.4" r="4.3"/><circle cx="30.0" cy="108.0" r="4.3"/><circle cx="43.6" cy="108.0" r="4.3"/><circle cx="57.2" cy="108.0" r="4.3"/><circle cx="70.8" cy="108.0" r="4.3"/><circle cx="84.4" cy="108.0" r="4.3"/><circle cx="98.0" cy="108.0" r="4.3"/><circle cx="111.6" cy="108.0" r="4.3"/><circle cx="125.2" cy="108.0" r="4.3"/><circle cx="138.8" cy="108.0" r="4.3"/><circle cx="152.4" cy="108.0" r="4.3"/><circle cx="166.0" cy="108.0" r="4.3"/><circle cx="179.6" cy="108.0" r="4.3"/><circle cx="193.2" cy="108.0" r="4.3"/><circle cx="206.8" cy="108.0" r="4.3"/><circle cx="220.4" cy="108.0" r="4.3"/><circle cx="234.0" cy="108.0" r="4.3"/><circle cx="247.6" cy="108.0" r="4.3"/><circle cx="261.2" cy="108.0" r="4.3"/><circle cx="274.8" cy="108.0" r="4.3"/><circle cx="288.4" cy="108.0" r="4.3"/><circle cx="302.0" cy="108.0" r="4.3"/><circle cx="315.6" cy="108.0" r="4.3"/><circle cx="329.2" cy="108.0" r="4.3"/><circle cx="342.8" cy="108.0" r="4.3"/><circle cx="356.4" cy="108.0" r="4.3"/><circle cx="370.0" cy="108.0" r="4.3"/><circle cx="383.6" cy="108.0" r="4.3"/><circle cx="397.2" cy="108.0" r="4.3"/><circle cx="410.8" cy="108.0" r="4.3"/><circle cx="424.4" cy="108.0" r="4.3"/><circle cx="438.0" cy="108.0" r="4.3"/><circle cx="451.6" cy="108.0" r="4.3"/><circle cx="465.2" cy="108.0" r="4.3"/><circle cx="478.8" cy="108.0" r="4.3"/><circle cx="492.4" cy="108.0" r="4.3"/><circle cx="506.0" cy="108.0" r="4.3"/><circle cx="519.6" cy="108.0" r="4.3"/><circle cx="533.2" cy="108.0" r="4.3"/><circle cx="546.8" cy="108.0" r="4.3"/><circle cx="560.4" cy="108.0" r="4.3"/><circle cx="574.0" cy="108.0" r="4.3"/><circle cx="30.0" cy="121.6" r="4.3"/><circle cx="43.6" cy="121.6" r="4.3"/><circle cx="57.2" cy="121.6" r="4.3"/><circle cx="70.8" cy="121.6" r="4.3"/><circle cx="84.4" cy="121.6" r="4.3"/><circle cx="98.0" cy="121.6" r="4.3"/><circle cx="111.6" cy="121.6" r="4.3"/><circle cx="125.2" cy="121.6" r="4.3"/><circle cx="138.8" cy="121.6" r="4.3"/><circle cx="152.4" cy="121.6" r="4.3"/><circle cx="166.0" cy="121.6" r="4.3"/><circle cx="179.6" cy="121.6" r="4.3"/><circle cx="193.2" cy="121.6" r="4.3"/><circle cx="206.8" cy="121.6" r="4.3"/><circle cx="220.4" cy="121.6" r="4.3"/><circle cx="234.0" cy="121.6" r="4.3"/><circle cx="247.6" cy="121.6" r="4.3"/><circle cx="261.2" cy="121.6" r="4.3"/><circle cx="274.8" cy="121.6" r="4.3"/><circle cx="288.4" cy="121.6" r="4.3"/><circle cx="302.0" cy="121.6" r="4.3"/><circle cx="315.6" cy="121.6" r="4.3"/><circle cx="329.2" cy="121.6" r="4.3"/><circle cx="342.8" cy="121.6" r="4.3"/><circle cx="356.4" cy="121.6" r="4.3"/><circle cx="370.0" cy="121.6" r="4.3"/><circle cx="383.6" cy="121.6" r="4.3"/><circle cx="397.2" cy="121.6" r="4.3"/><circle cx="410.8" cy="121.6" r="4.3"/><circle cx="424.4" cy="121.6" r="4.3"/><circle cx="438.0" cy="121.6" r="4.3"/><circle cx="451.6" cy="121.6" r="4.3"/><circle cx="465.2" cy="121.6" r="4.3"/><circle cx="478.8" cy="121.6" r="4.3"/><circle cx="492.4" cy="121.6" r="4.3"/><circle cx="506.0" cy="121.6" r="4.3"/><circle cx="519.6" cy="121.6" r="4.3"/><circle cx="533.2" cy="121.6" r="4.3"/><circle cx="546.8" cy="121.6" r="4.3"/><circle cx="560.4" cy="121.6" r="4.3"/><circle cx="574.0" cy="121.6" r="4.3"/><circle cx="30.0" cy="135.2" r="4.3"/><circle cx="43.6" cy="135.2" r="4.3"/><circle cx="57.2" cy="135.2" r="4.3"/><circle cx="70.8" cy="135.2" r="4.3"/><circle cx="84.4" cy="135.2" r="4.3"/><circle cx="98.0" cy="135.2" r="4.3"/><circle cx="111.6" cy="135.2" r="4.3"/><circle cx="125.2" cy="135.2" r="4.3"/><circle cx="138.8" cy="135.2" r="4.3"/><circle cx="152.4" cy="135.2" r="4.3"/><circle cx="166.0" cy="135.2" r="4.3"/><circle cx="179.6" cy="135.2" r="4.3"/><circle cx="193.2" cy="135.2" r="4.3"/><circle cx="206.8" cy="135.2" r="4.3"/><circle cx="220.4" cy="135.2" r="4.3"/><circle cx="234.0" cy="135.2" r="4.3"/><circle cx="247.6" cy="135.2" r="4.3"/><circle cx="261.2" cy="135.2" r="4.3"/><circle cx="274.8" cy="135.2" r="4.3"/><circle cx="288.4" cy="135.2" r="4.3"/><circle cx="302.0" cy="135.2" r="4.3"/><circle cx="315.6" cy="135.2" r="4.3"/><circle cx="329.2" cy="135.2" r="4.3"/><circle cx="342.8" cy="135.2" r="4.3"/><circle cx="356.4" cy="135.2" r="4.3"/><circle cx="370.0" cy="135.2" r="4.3"/><circle cx="383.6" cy="135.2" r="4.3"/><circle cx="397.2" cy="135.2" r="4.3"/><circle cx="410.8" cy="135.2" r="4.3"/><circle cx="424.4" cy="135.2" r="4.3"/><circle cx="438.0" cy="135.2" r="4.3"/><circle cx="451.6" cy="135.2" r="4.3"/><circle cx="465.2" cy="135.2" r="4.3"/><circle cx="478.8" cy="135.2" r="4.3"/><circle cx="492.4" cy="135.2" r="4.3"/><circle cx="506.0" cy="135.2" r="4.3"/><circle cx="519.6" cy="135.2" r="4.3"/><circle cx="533.2" cy="135.2" r="4.3"/><circle cx="546.8" cy="135.2" r="4.3"/><circle cx="560.4" cy="135.2" r="4.3"/><circle cx="574.0" cy="135.2" r="4.3"/><circle cx="30.0" cy="148.8" r="4.3"/><circle cx="43.6" cy="148.8" r="4.3"/><circle cx="57.2" cy="148.8" r="4.3"/><circle cx="70.8" cy="148.8" r="4.3"/><circle cx="84.4" cy="148.8" r="4.3"/><circle cx="98.0" cy="148.8" r="4.3"/><circle cx="111.6" cy="148.8" r="4.3"/><circle cx="125.2" cy="148.8" r="4.3"/><circle cx="138.8" cy="148.8" r="4.3"/><circle cx="152.4" cy="148.8" r="4.3"/><circle cx="166.0" cy="148.8" r="4.3"/><circle cx="179.6" cy="148.8" r="4.3"/><circle cx="193.2" cy="148.8" r="4.3"/><circle cx="206.8" cy="148.8" r="4.3"/><circle cx="220.4" cy="148.8" r="4.3"/><circle cx="234.0" cy="148.8" r="4.3"/><circle cx="247.6" cy="148.8" r="4.3"/><circle cx="261.2" cy="148.8" r="4.3"/><circle cx="274.8" cy="148.8" r="4.3"/><circle cx="288.4" cy="148.8" r="4.3"/><circle cx="302.0" cy="148.8" r="4.3"/><circle cx="315.6" cy="148.8" r="4.3"/><circle cx="329.2" cy="148.8" r="4.3"/><circle cx="342.8" cy="148.8" r="4.3"/><circle cx="356.4" cy="148.8" r="4.3"/><circle cx="370.0" cy="148.8" r="4.3"/><circle cx="383.6" cy="148.8" r="4.3"/><circle cx="397.2" cy="148.8" r="4.3"/><circle cx="410.8" cy="148.8" r="4.3"/><circle cx="424.4" cy="148.8" r="4.3"/><circle cx="438.0" cy="148.8" r="4.3"/><circle cx="451.6" cy="148.8" r="4.3"/><circle cx="465.2" cy="148.8" r="4.3"/><circle cx="478.8" cy="148.8" r="4.3"/><circle cx="492.4" cy="148.8" r="4.3"/><circle cx="506.0" cy="148.8" r="4.3"/><circle cx="519.6" cy="148.8" r="4.3"/><circle cx="533.2" cy="148.8" r="4.3"/><circle cx="546.8" cy="148.8" r="4.3"/><circle cx="560.4" cy="148.8" r="4.3"/><circle cx="574.0" cy="148.8" r="4.3"/><circle cx="30.0" cy="162.4" r="4.3"/><circle cx="43.6" cy="162.4" r="4.3"/><circle cx="57.2" cy="162.4" r="4.3"/><circle cx="70.8" cy="162.4" r="4.3"/><circle cx="84.4" cy="162.4" r="4.3"/><circle cx="98.0" cy="162.4" r="4.3"/><circle cx="111.6" cy="162.4" r="4.3"/><circle cx="125.2" cy="162.4" r="4.3"/><circle cx="138.8" cy="162.4" r="4.3"/><circle cx="152.4" cy="162.4" r="4.3"/><circle cx="166.0" cy="162.4" r="4.3"/><circle cx="179.6" cy="162.4" r="4.3"/><circle cx="193.2" cy="162.4" r="4.3"/><circle cx="206.8" cy="162.4" r="4.3"/><circle cx="220.4" cy="162.4" r="4.3"/><circle cx="234.0" cy="162.4" r="4.3"/><circle cx="247.6" cy="162.4" r="4.3"/><circle cx="261.2" cy="162.4" r="4.3"/><circle cx="274.8" cy="162.4" r="4.3"/><circle cx="288.4" cy="162.4" r="4.3"/><circle cx="302.0" cy="162.4" r="4.3"/><circle cx="315.6" cy="162.4" r="4.3"/><circle cx="329.2" cy="162.4" r="4.3"/><circle cx="342.8" cy="162.4" r="4.3"/><circle cx="356.4" cy="162.4" r="4.3"/><circle cx="370.0" cy="162.4" r="4.3"/><circle cx="383.6" cy="162.4" r="4.3"/><circle cx="397.2" cy="162.4" r="4.3"/><circle cx="410.8" cy="162.4" r="4.3"/><circle cx="424.4" cy="162.4" r="4.3"/><circle cx="438.0" cy="162.4" r="4.3"/><circle cx="451.6" cy="162.4" r="4.3"/><circle cx="465.2" cy="162.4" r="4.3"/><circle cx="478.8" cy="162.4" r="4.3"/><circle cx="492.4" cy="162.4" r="4.3"/><circle cx="506.0" cy="162.4" r="4.3"/><circle cx="519.6" cy="162.4" r="4.3"/><circle cx="533.2" cy="162.4" r="4.3"/><circle cx="546.8" cy="162.4" r="4.3"/><circle cx="560.4" cy="162.4" r="4.3"/><circle cx="574.0" cy="162.4" r="4.3"/><circle cx="30.0" cy="176.0" r="4.3"/><circle cx="43.6" cy="176.0" r="4.3"/><circle cx="57.2" cy="176.0" r="4.3"/><circle cx="70.8" cy="176.0" r="4.3"/><circle cx="84.4" cy="176.0" r="4.3"/><circle cx="98.0" cy="176.0" r="4.3"/><circle cx="111.6" cy="176.0" r="4.3"/><circle cx="125.2" cy="176.0" r="4.3"/><circle cx="138.8" cy="176.0" r="4.3"/><circle cx="152.4" cy="176.0" r="4.3"/><circle cx="166.0" cy="176.0" r="4.3"/><circle cx="179.6" cy="176.0" r="4.3"/><circle cx="193.2" cy="176.0" r="4.3"/><circle cx="206.8" cy="176.0" r="4.3"/><circle cx="220.4" cy="176.0" r="4.3"/><circle cx="234.0" cy="176.0" r="4.3"/><circle cx="247.6" cy="176.0" r="4.3"/><circle cx="261.2" cy="176.0" r="4.3"/><circle cx="274.8" cy="176.0" r="4.3"/><circle cx="288.4" cy="176.0" r="4.3"/><circle cx="302.0" cy="176.0" r="4.3"/><circle cx="315.6" cy="176.0" r="4.3"/><circle cx="329.2" cy="176.0" r="4.3"/><circle cx="342.8" cy="176.0" r="4.3"/><circle cx="356.4" cy="176.0" r="4.3"/><circle cx="370.0" cy="176.0" r="4.3"/><circle cx="383.6" cy="176.0" r="4.3"/><circle cx="397.2" cy="176.0" r="4.3"/><circle cx="410.8" cy="176.0" r="4.3"/><circle cx="424.4" cy="176.0" r="4.3"/><circle cx="438.0" cy="176.0" r="4.3"/><circle cx="451.6" cy="176.0" r="4.3"/><circle cx="465.2" cy="176.0" r="4.3"/><circle cx="478.8" cy="176.0" r="4.3"/><circle cx="492.4" cy="176.0" r="4.3"/><circle cx="506.0" cy="176.0" r="4.3"/><circle cx="519.6" cy="176.0" r="4.3"/><circle cx="533.2" cy="176.0" r="4.3"/><circle cx="546.8" cy="176.0" r="4.3"/><circle cx="560.4" cy="176.0" r="4.3"/><circle cx="574.0" cy="176.0" r="4.3"/><circle cx="30.0" cy="189.6" r="4.3"/><circle cx="43.6" cy="189.6" r="4.3"/><circle cx="57.2" cy="189.6" r="4.3"/><circle cx="70.8" cy="189.6" r="4.3"/><circle cx="84.4" cy="189.6" r="4.3"/><circle cx="98.0" cy="189.6" r="4.3"/><circle cx="111.6" cy="189.6" r="4.3"/><circle cx="125.2" cy="189.6" r="4.3"/><circle cx="138.8" cy="189.6" r="4.3"/><circle cx="152.4" cy="189.6" r="4.3"/><circle cx="166.0" cy="189.6" r="4.3"/><circle cx="179.6" cy="189.6" r="4.3"/><circle cx="193.2" cy="189.6" r="4.3"/><circle cx="206.8" cy="189.6" r="4.3"/><circle cx="220.4" cy="189.6" r="4.3"/><circle cx="234.0" cy="189.6" r="4.3"/><circle cx="247.6" cy="189.6" r="4.3"/><circle cx="261.2" cy="189.6" r="4.3"/><circle cx="274.8" cy="189.6" r="4.3"/><circle cx="288.4" cy="189.6" r="4.3"/><circle cx="302.0" cy="189.6" r="4.3"/><circle cx="315.6" cy="189.6" r="4.3"/><circle cx="329.2" cy="189.6" r="4.3"/><circle cx="342.8" cy="189.6" r="4.3"/><circle cx="356.4" cy="189.6" r="4.3"/><circle cx="370.0" cy="189.6" r="4.3"/><circle cx="383.6" cy="189.6" r="4.3"/><circle cx="397.2" cy="189.6" r="4.3"/><circle cx="410.8" cy="189.6" r="4.3"/><circle cx="424.4" cy="189.6" r="4.3"/><circle cx="438.0" cy="189.6" r="4.3"/><circle cx="451.6" cy="189.6" r="4.3"/><circle cx="465.2" cy="189.6" r="4.3"/><circle cx="478.8" cy="189.6" r="4.3"/><circle cx="492.4" cy="189.6" r="4.3"/><circle cx="506.0" cy="189.6" r="4.3"/><circle cx="519.6" cy="189.6" r="4.3"/><circle cx="533.2" cy="189.6" r="4.3"/><circle cx="546.8" cy="189.6" r="4.3"/><circle cx="560.4" cy="189.6" r="4.3"/><circle cx="574.0" cy="189.6" r="4.3"/><circle cx="30.0" cy="203.2" r="4.3"/><circle cx="43.6" cy="203.2" r="4.3"/><circle cx="57.2" cy="203.2" r="4.3"/><circle cx="70.8" cy="203.2" r="4.3"/><circle cx="84.4" cy="203.2" r="4.3"/><circle cx="98.0" cy="203.2" r="4.3"/><circle cx="111.6" cy="203.2" r="4.3"/><circle cx="125.2" cy="203.2" r="4.3"/><circle cx="138.8" cy="203.2" r="4.3"/><circle cx="152.4" cy="203.2" r="4.3"/><circle cx="166.0" cy="203.2" r="4.3"/><circle cx="179.6" cy="203.2" r="4.3"/><circle cx="193.2" cy="203.2" r="4.3"/><circle cx="206.8" cy="203.2" r="4.3"/><circle cx="220.4" cy="203.2" r="4.3"/><circle cx="234.0" cy="203.2" r="4.3"/><circle cx="247.6" cy="203.2" r="4.3"/><circle cx="261.2" cy="203.2" r="4.3"/><circle cx="274.8" cy="203.2" r="4.3"/><circle cx="288.4" cy="203.2" r="4.3"/><circle cx="302.0" cy="203.2" r="4.3"/><circle cx="315.6" cy="203.2" r="4.3"/><circle cx="329.2" cy="203.2" r="4.3"/><circle cx="342.8" cy="203.2" r="4.3"/><circle cx="356.4" cy="203.2" r="4.3"/><circle cx="370.0" cy="203.2" r="4.3"/><circle cx="383.6" cy="203.2" r="4.3"/><circle cx="397.2" cy="203.2" r="4.3"/><circle cx="410.8" cy="203.2" r="4.3"/><circle cx="424.4" cy="203.2" r="4.3"/><circle cx="438.0" cy="203.2" r="4.3"/><circle cx="451.6" cy="203.2" r="4.3"/><circle cx="465.2" cy="203.2" r="4.3"/><circle cx="478.8" cy="203.2" r="4.3"/><circle cx="492.4" cy="203.2" r="4.3"/><circle cx="506.0" cy="203.2" r="4.3"/><circle cx="519.6" cy="203.2" r="4.3"/><circle cx="533.2" cy="203.2" r="4.3"/><circle cx="546.8" cy="203.2" r="4.3"/><circle cx="560.4" cy="203.2" r="4.3"/><circle cx="574.0" cy="203.2" r="4.3"/><circle cx="30.0" cy="216.8" r="4.3"/><circle cx="43.6" cy="216.8" r="4.3"/><circle cx="57.2" cy="216.8" r="4.3"/><circle cx="70.8" cy="216.8" r="4.3"/><circle cx="84.4" cy="216.8" r="4.3"/><circle cx="98.0" cy="216.8" r="4.3"/><circle cx="111.6" cy="216.8" r="4.3"/></g>
+            <g data-step="1" transform="translate(26,380)">
+              <text class="p-txt" x="0" y="0">Ranking: top 20% of parts</text>
+              <rect class="p-track" x="0" y="10" width="560" height="14" rx="2"/>
+              <rect class="p-bar" x="0" y="10" width="336" height="14" rx="2"/>
+              <text class="p-num" x="560" y="4" text-anchor="end">60%</text>
+              <text class="p-txt" x="0" y="54">Random 20% of parts</text>
+              <rect class="p-track" x="0" y="64" width="560" height="14" rx="2"/>
+              <rect class="p-bar--quiet" x="0" y="64" width="112" height="14" rx="2"/>
+              <text class="p-num" x="560" y="58" text-anchor="end" style="opacity:.55">20%</text>
+            </g>
+            <g data-step="2" transform="translate(26,488)">
+              <text class="p-txt" x="0" y="0">Recent events the model never learned from (~250)</text>
+              <rect class="p-track" x="0" y="10" width="560" height="14" rx="2"/>
+              <rect class="p-bar" x="0" y="10" width="392" height="14" rx="2"/>
+              <text class="p-num" x="560" y="4" text-anchor="end">70%</text>
+              <text class="p-txt" x="0" y="50" style="opacity:.6">Events from the most recent six months</text>
+            </g>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7 · Early warning -->
+    <section class="section paper frame-fit" id="warning" data-section="9">
+      <div class="section__inner frame-fit__inner warn__grid">
+        <div class="reveal">
+          <p class="kicker">Why you can trust it · Early warning</p>
+          <h2>The warning comes months ahead.</h2>
+          <p class="lede">The affected parts were already high on the list <strong>about 22 weeks</strong> on average before the disruption happened. That is enough time to qualify a second source, build stock or talk to the supplier. It is not a last-minute alarm.</p>
+          <div class="stats">
+            <div class="stat"><span class="stat__num">22 wks</span><span class="stat__label">average early warning</span></div>
+            <div class="stat"><span class="stat__num">~54%</span><span class="stat__label">in the top 20% at every check point, from 24 to 4 weeks before</span></div>
+          </div>
+        </div>
+        <div class="reveal">
+          <svg viewBox="0 0 600 380" role="img" aria-label="Bar chart of the share of disruptions already in the top 20 percent of the list, by weeks before the event: 24 weeks 52 percent, 20 weeks 53, 16 weeks 54, 12 weeks 54, 8 weeks 55, 4 weeks 56. The share stays steady for six months.">
+            <text class="lbl" x="40" y="24">Share of disruptions already in the top 20%</text>
+            <line class="grid-line" x1="40" y1="70" x2="520" y2="70"/>
+            <text class="t-sm" x="34" y="74" text-anchor="end">60%</text>
+            <line class="grid-line" x1="40" y1="170" x2="520" y2="170"/>
+            <text class="t-sm" x="34" y="174" text-anchor="end">30%</text>
+            <g>
+              <rect class="w-bar" x="62" y="96.7" width="48" height="173.3"/>
+              <rect class="w-bar" x="140" y="93.3" width="48" height="176.7"/>
+              <rect class="w-bar" x="218" y="90.0" width="48" height="180.0"/>
+              <rect class="w-bar" x="296" y="90.0" width="48" height="180.0"/>
+              <rect class="w-bar" x="374" y="86.7" width="48" height="183.3"/>
+              <rect class="w-bar" x="452" y="83.3" width="48" height="186.7"/>
+            </g>
+            <g class="t-mid">
+              <text x="86" y="88.7" text-anchor="middle">52%</text>
+              <text x="164" y="85.3" text-anchor="middle">53%</text>
+              <text x="242" y="82.0" text-anchor="middle">54%</text>
+              <text x="320" y="82.0" text-anchor="middle">54%</text>
+              <text x="398" y="78.7" text-anchor="middle">55%</text>
+              <text x="476" y="75.3" text-anchor="middle">56%</text>
+            </g>
+            <line class="w-axis" x1="40" y1="270" x2="560" y2="270"/>
+            <line class="w-event" x1="548" y1="60" x2="548" y2="270"/>
+            <text class="t-mid t-red" x="548" y="50" text-anchor="middle">Disruption</text>
+            <g class="t-sm">
+              <text x="86"  y="292" text-anchor="middle">24 wks</text>
+              <text x="164" y="292" text-anchor="middle">20</text>
+              <text x="242" y="292" text-anchor="middle">16</text>
+              <text x="320" y="292" text-anchor="middle">12</text>
+              <text x="398" y="292" text-anchor="middle">8</text>
+              <text x="476" y="292" text-anchor="middle">4</text>
+            </g>
+            <text class="lbl" x="40" y="330">Weeks before the disruption →</text>
+            <text class="t-sm" x="40" y="356">Each bar re-runs the ranking with only the data known at that point.</text>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8 · Playbook -->
+    <section class="section white" id="playbook" data-section="10">
+      <div class="section__inner">
+        <div class="split-head reveal">
+          <div>
+            <p class="kicker">How to use it · Daily dashboard</p>
+            <h2>Start at the top. Read the signals. Act.</h2>
+          </div>
+          <p class="lede">The ranking refreshes every day in the Celonis dashboard. The score tells you <em>where</em> to look; the signals on each row tell you <em>what</em> to do. Select a signal on Part A's row to see the matching action.</p>
+        </div>
+        <div class="playbook__grid">
+          <div class="reveal">
+            <ol class="routine">
+              <li><span><b>Open the dashboard each morning</b> and filter to your category or plant.</span></li>
+              <li><span><b>Work from the top down.</b> Check which signals are lit. Where parts rank similarly, tackle the one with the higher business impact first.</span></li>
+              <li><span><b>Take the matching action</b> and agree who owns it. Tomorrow's ranking shows whether it worked.</span></li>
+            </ol>
+            <div class="dash" aria-label="Example dashboard row for Part A">
+              <div class="dash__top"><span>Supply resilience · today</span><span>Rank of 35,000</span></div>
+              <div class="dash__row">
+                <span class="dash__rank">3</span>
+                <span class="dash__name">Part A<span>Purchased component · ~150 products</span></span>
+                <span class="score"><b>Very high</b><span>Criticality</span></span>
+              </div>
+              <div class="dash__fig">
+                <div class="fig">Likelihood<b>Elevated</b><span class="meter" aria-hidden="true"><i style="width:72%"></i></span></div>
+                <div class="fig">Impact<b>Very high</b><span class="meter" aria-hidden="true"><i style="width:95%"></i></span></div>
+              </div>
+              <div class="dash__signals">
+                <p id="signals-label">Signals on this part</p>
+                <div class="chips" role="group" aria-labelledby="signals-label">
+                  <button class="chip" type="button" aria-pressed="false" data-action="a1">Single source · wide reach</button>
+                  <button class="chip" type="button" aria-pressed="false" data-action="a2">Survive &lt; recover by 290 days</button>
+                  <button class="chip" type="button" aria-pressed="false" data-action="a3">Deliveries slipping</button>
+                  <button class="chip" type="button" aria-pressed="false" data-action="a4" data-level="watch">External signal · watch</button>
+                </div>
+              </div>
+            </div>
+            <p class="micro" style="margin-top:.8rem">A filled dot means the signal is active. An outlined dot means it is rising but below the alert level.</p>
+          </div>
+          <div class="actions reveal">
+            <article class="action" id="a1">
+              <span class="action__n">01</span>
+              <div>
+                <span class="when">When: single source + wide reach</span>
+                <h3>Qualify a second source.</h3>
+                <p>One supplier carries many products. Start qualifying an alternative before anything goes wrong; it is the slowest fix, so start it first.</p>
+                <span class="who">Owner: strategic buyer / category manager</span>
+              </div>
+            </article>
+            <article class="action" id="a2">
+              <span class="action__n">02</span>
+              <div>
+                <span class="when">When: time to survive &lt; time to recover</span>
+                <h3>Raise safety stock or pre-buy.</h3>
+                <p>Close the gap between time to survive and time to recover. Use it to bridge the time until a second source is ready.</p>
+                <span class="who">Owner: material planner</span>
+              </div>
+            </article>
+            <article class="action" id="a3">
+              <span class="action__n">03</span>
+              <div>
+                <span class="when">When: deliveries are slipping</span>
+                <h3>Call the supplier. Expedite open orders.</h3>
+                <p>Recent receipts suggest the supplier may already be struggling. Confirm open orders, ask for the cause and pull deliveries forward.</p>
+                <span class="who">Owner: operational buyer</span>
+              </div>
+            </article>
+            <article class="action" id="a4">
+              <span class="action__n">04</span>
+              <div>
+                <span class="when">When: weak external risk signal</span>
+                <h3>Escalate the supplier.</h3>
+                <p>Operational or financial health is weakening. Hand it to supplier risk management or category management for a supplier review.</p>
+                <span class="who">Owner: supplier risk mgmt / category mgmt</span>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 9 · What's next -->
+    <section class="section dark frame-fit close" id="next" data-section="11">
+      <div class="section__inner frame-fit__inner close__grid">
+        <div class="reveal">
+          <p class="kicker">What comes next</p>
+          <h2>The list gets sharper as the data does.</h2>
+          <p class="lede">The model checks itself on every run. Its own analysis shows where improvements pay off most.</p>
+          <p class="close__final">Today: start each day at the top of the list.</p>
+        </div>
+        <ul class="next-list reveal">
+          <li><b>Tuned weights: +15 points</b><span>Fitting the score to past disruptions raised the top-10% catch rate on recent, unseen events from about 40% to 55%.</span></li>
+          <li><b>Richer delivery data</b><span>More detailed lead-time and disruption-impact data is estimated to lift the catch rate from 60% to over 90%.</span></li>
+          <li><b>Delivery-date history, captured daily</b><span>Daily snapshots of scheduling-agreement lines now record when deliveries get pushed. SAP doesn't keep that history. It will feed the next model version.</span></li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <nav class="section-nav" aria-label="Presentation navigation">
+    <button class="section-nav__button" type="button" data-section-nav="previous" aria-label="Previous section" disabled>↑</button>
+    <button class="section-nav__button" type="button" data-section-nav="next" aria-label="Next section">↓</button>
+  </nav>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+  <script>
+    (() => {
+      const root = document.documentElement;
+      root.classList.add('js');
+
+      const sections = [...document.querySelectorAll('[data-section]')];
+      const previousButton = document.querySelector('[data-section-nav="previous"]');
+      const nextButton = document.querySelector('[data-section-nav="next"]');
+      const progressBar = document.querySelector('.progress');
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const hasGsap = typeof window.gsap !== 'undefined' && typeof window.ScrollTrigger !== 'undefined';
+      const canAnimate = hasGsap && !reduceMotion;
+
+      function setProgress(index) {
+        const current = Math.max(1, Math.min(sections.length, index));
+        if (previousButton) previousButton.disabled = current <= 1;
+        if (nextButton) nextButton.disabled = current >= sections.length;
+      }
+      function isTextEntry(target) {
+        if (!(target instanceof HTMLElement)) return false;
+        return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName);
+      }
+      function currentSectionIndex() {
+        const marker = window.scrollY + window.innerHeight * .4;
+        let current = 0;
+        sections.forEach((section, index) => {
+          if (marker >= section.getBoundingClientRect().top + window.scrollY) current = index;
+        });
+        return current;
+      }
+      function goToSection(index) {
+        const target = sections[index];
+        if (!target) return;
+        target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+        setProgress(index + 1);
+      }
+      previousButton?.addEventListener('click', () => goToSection(currentSectionIndex() - 1));
+      nextButton?.addEventListener('click', () => goToSection(currentSectionIndex() + 1));
+      setProgress(1);
+
+      document.addEventListener('keydown', (event) => {
+        if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || isTextEntry(event.target)) return;
+        const direction = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
+        if (!direction) return;
+        event.preventDefault();
+        goToSection(currentSectionIndex() + direction);
+      });
+
+      // Reading progress (plain scroll listener, no animation engine needed)
+      const updateBar = () => {
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        if (progressBar) progressBar.style.transform = `scaleX(${max > 0 ? window.scrollY / max : 0})`;
+      };
+      window.addEventListener('scroll', updateBar, { passive: true });
+      updateBar();
+
+      // Playbook: signal chips light up the matching action card
+      const chips = [...document.querySelectorAll('.chip')];
+      chips.forEach((chip) => chip.addEventListener('click', () => {
+        const on = chip.getAttribute('aria-pressed') !== 'true';
+        chips.forEach((c) => c.setAttribute('aria-pressed', 'false'));
+        document.querySelectorAll('.action').forEach((a) => a.classList.remove('is-lit'));
+        if (on) {
+          chip.setAttribute('aria-pressed', 'true');
+          document.getElementById(chip.dataset.action)?.classList.add('is-lit');
+        }
+      }));
+
+      function setBeat(scene, index) {
+        scene.querySelectorAll('.beat').forEach((beat, i) => beat.classList.toggle('is-active', i === index));
+      }
+      // Final readable state: every diagram group visible, last beat active.
+      function showFinalState() {
+        root.classList.add('motion-disabled');
+        document.querySelectorAll('[data-scene]').forEach((scene) => {
+          setBeat(scene, scene.querySelectorAll('.beat').length - 1);
+        });
+      }
+
+      if ('IntersectionObserver' in window && sections.length) {
+        const sectionObserver = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => { if (entry.isIntersecting) setProgress(sections.indexOf(entry.target) + 1); });
+        }, { threshold: .35 });
+        sections.forEach((section) => sectionObserver.observe(section));
+      }
+
+      if (!canAnimate) { showFinalState(); return; }
+
+      gsap.registerPlugin(ScrollTrigger);
+      document.body.classList.add('motion-ready');
+
+      // Simple entrance reveals (final state is the CSS default)
+      gsap.utils.toArray('.reveal').forEach((element) => {
+        gsap.from(element, {
+          opacity: 0, y: 16, duration: .7, ease: 'power2.out',
+          scrollTrigger: { trigger: element, start: 'top 88%', once: true }
+        });
+      });
+
+      // Each scene: groups tagged data-step="n" appear on beat n.
+      function buildSceneTimeline(scene, tl) {
+        const steps = scene.querySelectorAll('.beat').length;
+        for (let n = 0; n < steps; n++) {
+          const groups = scene.querySelectorAll(`.stage [data-step="${n}"]`);
+          if (n === 0) {
+            tl.from(groups, { autoAlpha: 0, y: 10, duration: .6, stagger: .05 }, 0);
+          } else {
+            tl.from(groups, { autoAlpha: 0, y: 10, duration: .6 }, n);
+          }
+        }
+        tl.to({}, { duration: .4 }, steps - .4); // hold the last beat
+        return steps;
+      }
+
+      const mm = gsap.matchMedia();
+      mm.add('(min-width: 901px)', () => {
+        document.querySelectorAll('[data-scene]').forEach((scene) => {
+          const tl = gsap.timeline({ defaults: { ease: 'none' } });
+          const steps = buildSceneTimeline(scene, tl);
+          ScrollTrigger.create({
+            trigger: scene,
+            start: 'top top',
+            end: 'bottom bottom',
+            scrub: .4,
+            animation: tl,
+            invalidateOnRefresh: true,
+            onUpdate: (self) => setBeat(scene, Math.min(steps - 1, Math.floor(self.progress * steps * 1.05)))
+          });
+        });
+      });
+      mm.add('(max-width: 900px)', () => {
+        // Narrow screens: no pinning; each scene plays once when it enters.
+        document.querySelectorAll('[data-scene]').forEach((scene) => {
+          const tl = gsap.timeline({ paused: true, defaults: { ease: 'power2.out' } });
+          const steps = buildSceneTimeline(scene, tl);
+          tl.timeScale(tl.duration() / 1.6);
+          setBeat(scene, steps - 1);
+          ScrollTrigger.create({ trigger: scene.querySelector('.stage'), start: 'top 80%', once: true, onEnter: () => tl.play() });
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

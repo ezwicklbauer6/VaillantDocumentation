@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="data:," />
+  <meta name="description" content="Two interactive explainers: a supply resilience ranking and a procurement planning simulator." />
+  <title>Supply Planning Explainers</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root { --ink: #111; --muted: #686868; --line: #d3d3d3; --paper: #f5f5f5; --white: #fff; --accent: #5865c9; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: clamp(1.5rem, 6vw, 5rem) 16px; background: var(--paper); color: var(--ink); font-family: "Poppins", system-ui, sans-serif; line-height: 1.5; }
+    main { width: min(100%, 1000px); }
+    .kicker { margin: 0 0 .9rem; color: var(--muted); font-size: .7rem; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { margin: 0 0 1rem; font-size: clamp(2rem, 5vw, 3.6rem); font-weight: 500; letter-spacing: -.045em; line-height: 1.04; max-width: 16ch; }
+    .lede { max-width: 56ch; margin: 0 0 2rem; color: var(--muted); }
+    .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+    a.card { display: block; padding: clamp(1.2rem, 3vw, 2rem); background: var(--white); color: inherit; text-decoration: none; transition: box-shadow .2s ease; }
+    a.card:hover { box-shadow: inset 3px 0 0 var(--accent); }
+    a.card:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .card__n { color: #9a9a9a; font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; }
+    .card h2 { margin: .8rem 0 .5rem; font-size: clamp(1.2rem, 2.2vw, 1.6rem); font-weight: 500; letter-spacing: -.035em; line-height: 1.1; }
+    .card p { margin: 0 0 1rem; color: var(--muted); font-size: .9rem; }
+    .card span { font-size: .85rem; font-weight: 500; }
+    .micro { margin-top: 1.2rem; color: var(--muted); font-size: .76rem; }
+    @media (max-width: 640px) { .cards { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="kicker">Interactive explainers</p>
+    <h1>Supply risk and procurement planning, explained.</h1>
+    <p class="lede">Two scroll-through presentations for buyers and planners. Each takes about 8 minutes and works best on a laptop or larger screen.</p>
+    <div class="cards">
+      <a class="card" href="supply-resilience.html">
+        <span class="card__n">01 · Supply resilience</span>
+        <h2>Which part would hurt most if supply stopped?</h2>
+        <p>How a daily ranking combines reach, sourcing, delivery behaviour and stock cover, why it can be trusted, and what to do when a part reaches the top.</p>
+        <span>Open presentation →</span>
+      </a>
+      <a class="card" href="procurement-planning.html">
+        <span class="card__n">02 · Procurement planning</span>
+        <h2>A new forecast landed. What do we actually need to buy?</h2>
+        <p>How a planning simulator turns a forecast change into the exact orders needed: what, when, how much and why, without touching SAP.</p>
+        <span>Open presentation →</span>
+      </a>
+    </div>
+    <p class="micro">Illustrative examples · all names and figures are representative, not from a real company.</p>
+  </main>
+</body>
+</html>
