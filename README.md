@@ -4,7 +4,7 @@ Two self-contained, scroll-driven HTML presentations for buyers and planners:
 
 | File | Topic |
 |---|---|
-| `supply-resilience.html` | A daily supply resilience ranking: which parts would hurt most if supply stopped, why the ranking can be trusted, and what to do |
+| `supply-resilience.html` | A daily supply resilience ranking: which parts would hurt most if supply stopped, how it sets priorities beyond business impact, and what to do |
 | `procurement-planning.html` | A procurement planning simulator: from a forecast change to the exact orders needed, without touching SAP |
 | `index.html` | Landing page linking both |
 
