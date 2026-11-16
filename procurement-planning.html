@@ -8,22 +8,18 @@
   <meta name="description" content="How a procurement planning simulator turns a forecast change into the exact raw-material orders needed: what, when, how much and why, without touching SAP." />
   <title>Procurement Planning Simulator</title>
 
-  <!-- Poppins (Celonis brand font) -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet" />
-
   <style>
     :root {
-      --black: #000;
+      --black: #2c2c2c;
       --white: #fff;
-      --paper: #f5f5f5;
-      --ink: #111;
+      --paper: #f6f5f4;
+      --ink: #2c2c2c;
       --muted: #686868;
-      --faint: #9a9a9a;
-      --line: #d3d3d3;
-      --accent: #5865c9;
+      --faint: #9b9b9b;
+      --line: #e2dfdc;
+      --accent: #00887d;
       --red: #bf281b;
+      --accent-2: #2a507c;
       --max: 1240px;
       --gutter: clamp(1.25rem, 4vw, 4.5rem);
 
@@ -36,15 +32,15 @@
 
     * { box-sizing: border-box; }
     html { background: var(--paper); scroll-behavior: smooth; }
-    body { margin: 0; overflow-x: hidden; background: var(--paper); color: var(--ink); font-family: "Poppins", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-weight: 400; line-height: 1.5; }
+    body { margin: 0; overflow-x: hidden; background: var(--paper); color: var(--ink); font-family: Arial, Helvetica, sans-serif; font-weight: 400; line-height: 1.5; }
     body::selection { background: var(--accent); color: var(--white); }
     img, svg { max-width: 100%; }
     button { font: inherit; }
     strong { font-weight: 600; }
 
     .section-nav { position: fixed; z-index: 50; right: clamp(1rem, 3vw, 2.75rem); bottom: clamp(1rem, 3vw, 2.25rem); display: grid; gap: .35rem; }
-    .section-nav__button { display: grid; width: 2.45rem; height: 2.45rem; place-items: center; padding: 0; border: 1px solid rgba(255,255,255,.42); border-radius: 50%; background: rgba(0,0,0,.84); color: var(--white); cursor: pointer; font-size: 1.15rem; line-height: 1; transition: opacity .2s ease, background .2s ease, transform .2s ease; }
-    .section-nav__button:hover:not(:disabled) { background: #333; transform: translateY(-1px); }
+    .section-nav__button { display: grid; width: 2.45rem; height: 2.45rem; place-items: center; padding: 0; border: 1px solid rgba(255,255,255,.42); border-radius: 50%; background: var(--accent); color: var(--white); cursor: pointer; font-size: 1.15rem; line-height: 1; transition: opacity .2s ease, background .2s ease, transform .2s ease; }
+    .section-nav__button:hover:not(:disabled) { background: var(--accent-2); transform: translateY(-1px); }
     .section-nav__button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
     .section-nav__button:disabled { cursor: default; opacity: .35; }
     .progress { position: fixed; z-index: 60; top: 0; left: 0; height: 2px; width: 100%; transform-origin: 0 50%; transform: scaleX(0); background: var(--accent); }
@@ -57,7 +53,7 @@
     .kicker { margin: 0 0 .9rem; color: var(--muted); font-size: .7rem; font-weight: 500; letter-spacing: .16em; line-height: 1.3; text-transform: uppercase; }
     .dark .kicker { color: rgba(255,255,255,.58); }
     h1, h2, h3, p { margin-top: 0; }
-    h1, h2, h3 { letter-spacing: -.045em; line-height: 1.04; font-weight: 500; }
+    h1, h2, h3 { letter-spacing: -.025em; line-height: 1.04; font-weight: 500; }
     h1 { margin-bottom: 1rem; }
     h2 { margin-bottom: .9rem; font-size: var(--heading-fit); }
     h3 { margin-bottom: .55rem; }
@@ -87,7 +83,7 @@
     .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
     .stat { background: var(--paper); padding: clamp(.9rem, 2.2svh, 1.5rem); }
     .white .stat { background: var(--white); }
-    .stat__num { display: block; font-size: clamp(1.45rem, min(2.8vw, 4.8svh), 2.4rem); font-weight: 500; letter-spacing: -.04em; line-height: 1; margin-bottom: .45rem; }
+    .stat__num { display: block; font-size: clamp(1.45rem, min(2.8vw, 4.8svh), 2.4rem); font-weight: 500; letter-spacing: -.025em; line-height: 1; margin-bottom: .45rem; }
     .stat__label { color: var(--muted); font-size: .78rem; line-height: 1.4; }
     .dark .stats { background: rgba(255,255,255,.18); border-color: rgba(255,255,255,.18); }
     .dark .stat { background: var(--black); }
@@ -134,7 +130,7 @@
     .beat.is-active::before { background: currentColor; }
     .stage { display: grid; min-height: min(62svh, 38rem); place-items: center; padding: 1rem 0; }
     .stage svg { width: 100%; height: auto; max-height: 84svh; overflow: visible; }
-    svg text { font-family: "Poppins", system-ui, sans-serif; }
+    svg text { font-family: Arial, Helvetica, sans-serif; }
     .lbl { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; fill: var(--muted); }
     .t-mid { font-size: 13px; fill: var(--ink); }
     .t-sm { font-size: 11px; fill: var(--muted); }
@@ -222,13 +218,13 @@
     .panel > div { background: var(--white); padding: 1rem; }
     .panel h4 { margin: 0 0 .4rem; font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 500; color: var(--muted); }
     .panel p { margin: 0; font-size: .86rem; color: var(--ink); line-height: 1.5; }
-    .panel .num { display: block; margin-bottom: .3rem; font-size: 1.5rem; font-weight: 500; letter-spacing: -.03em; }
+    .panel .num { display: block; margin-bottom: .3rem; font-size: 1.5rem; font-weight: 500; letter-spacing: -.025em; }
     .panel__title { grid-column: 1 / -1; font-weight: 500; font-size: .95rem; }
 
     /* Next */
     .next__grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(17rem, .95fr); align-items: center; gap: var(--gap-fit); }
     .next__grid svg { width: 100%; height: auto; }
-    .close__final { margin-top: clamp(1.5rem, 5svh, 3rem); font-size: clamp(1.2rem, 2vw, 1.6rem); font-weight: 500; letter-spacing: -.03em; }
+    .close__final { margin-top: clamp(1.5rem, 5svh, 3rem); font-size: clamp(1.2rem, 2vw, 1.6rem); font-weight: 500; letter-spacing: -.025em; }
     .n-track { fill: rgba(255,255,255,.12); }
     .n-bar { fill: var(--white); }
     .n-bar--soft { fill: rgba(255,255,255,.4); }
@@ -264,6 +260,10 @@
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
     }
+    /* Vaillant Group look & feel: teal headings on light sections, Compatil Fact for display type */
+    h1, h2 { font-family: "Compatil Fact", Arial, Helvetica, sans-serif; color: var(--accent); }
+    h3 { font-family: "Compatil Fact", Arial, Helvetica, sans-serif; }
+    .dark h1, .dark h2 { color: var(--white); }
   </style>
 </head>
 <body>
@@ -586,7 +586,7 @@
               <rect class="panel-bg" x="70" y="452" width="600" height="38" rx="4"/>
               <text class="t-mid" x="86" y="476"><tspan class="t-b">Whole run:</tspan> 3,000 orders pulled forward · 2,200 new purchase orders</text>
             </g>
-            <defs><marker id="ah" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#111"/></marker></defs>
+            <defs><marker id="ah" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#2c2c2c"/></marker></defs>
           </svg>
         </div>
       </div>
@@ -709,7 +709,7 @@
 <circle class="p-dot--open" cx="1025.6" cy="250" r="9"/>
 <text class="t-sm" x="1025.6" y="226" text-anchor="middle">29 Nov</text>
 <text class="t-sm" x="0" y="314">Each order 5,000 units. ● caused by the forecast (5) · ○ already short in SAP's plan (1)</text>
-            <defs><marker id="ah2" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#111"/></marker></defs>
+            <defs><marker id="ah2" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#2c2c2c"/></marker></defs>
           </svg>
         </div>
         <div class="split reveal">

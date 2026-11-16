@@ -31,4 +31,4 @@ To switch between both in one iframe, set the URL to
 
 ## Dependencies
 
-Each page is a single HTML file. It loads the Poppins font (Google Fonts) and GSAP 3.12.5 + ScrollTrigger (jsDelivr) from CDNs. Without them, the content stays fully readable, just without animation.
+Each page is a single HTML file. It uses the Vaillant Group type stack (Compatil Fact for headings where installed, otherwise Arial; Arial for body text) and loads GSAP 3.12.5 + ScrollTrigger (jsDelivr) from CDNs. Without them, the content stays fully readable, just without animation.
